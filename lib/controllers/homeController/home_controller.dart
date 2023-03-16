@@ -1,3 +1,4 @@
+import 'package:chat_app/controllers/chatController/chat_controller.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -112,5 +113,10 @@ class HomeController extends GetxController {
     await auth.signOut().then((value) {
       Get.offAll(LoginScreen());
     });
+  }
+  @override
+  void onInit() {
+    Get.find<ChatController>().getCurrentLatLng();
+    super.onInit();
   }
 }

@@ -138,7 +138,7 @@ class _AllUsersScreenState extends State<AllUsersScreen> {
                               // return homeBuild(context, snapshot.data?.docs[index]);
                               return GestureDetector(
                                 onTap: (){
-                                  Get.log("${snapshot.data!.docs[index].data()}");
+                                  Get.log("1111111${snapshot.data!.docs[index].data()}");
                                   Get.to(ChatScreen(
                                     groupId: (auth.currentUser!.uid.hashCode + snapshot.data!.docs[index]['id'].hashCode).toString(),
                                     userMap: snapshot.data!.docs[index].data(),
