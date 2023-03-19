@@ -298,8 +298,7 @@ class ChatController extends GetxController {
         .delete();
   }
 
-  updateMessageReadStatus(
-      MessageModel message, String groupChatId, dynamic userMap) async {
+  updateMessageReadStatus(String groupChatId, dynamic userMap) async {
     //Get.log("message time stamp is ${message.timestamp}");
 
     final CollectionReference collection = fireStore

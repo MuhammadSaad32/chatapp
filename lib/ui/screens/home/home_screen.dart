@@ -285,10 +285,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         // return homeBuild(context, snapshot.data?.docs[index]);
                         return GestureDetector(
                           onTap: () {
-                            // Get.find<ChatController>().updateMessageReadStatus(
-                            //     (auth.currentUser!.uid.hashCode +
-                            //     snapshot.data!.docs[index]['id'].hashCode).toString(),
-                            //     snapshot.data!.docs[index].data()['id']);
+                            //Get.find<ChatController>().updateMessageReadStatus(
+                              //   (auth.currentUser!.uid.hashCode +
+                                // snapshot.data!.docs[index]['id'].hashCode).toString(),
+                                 //snapshot.data!.docs[index].data());
                             Get.log(
                                 "12321  ${snapshot.data!.docs[index].data()['id']}");
                             Get.to(ChatScreen(

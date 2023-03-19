@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       getPages: [
         GetPage<void>(
-            name: '/', page: () => PaginatedDataScreen(), bindings: [DataBinding()]),
+            name: '/', page: () => LoginScreen(), bindings: [DataBinding()]),
       ],
     );
   }
