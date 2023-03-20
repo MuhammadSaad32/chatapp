@@ -24,7 +24,7 @@ class _PaginatedDataScreenState extends State<PaginatedDataScreen> {
   }
   void data() async {
    if(moreData){
-     final CollectionReference collectionReference = firestore
+     Query q = firestore
          .collection('chatRoom')
          .doc(555952079.toString())
          .collection('ChatUsers')
@@ -33,10 +33,10 @@ class _PaginatedDataScreenState extends State<PaginatedDataScreen> {
 
      late QuerySnapshot querySnapshot;
      if(lastDocument == null){
-       querySnapshot = await collectionReference.limit(15).get();
+       querySnapshot = await q.limit(15).get();
      }
      else{
-       querySnapshot = await collectionReference.limit(15).startAfterDocument(lastDocument!).get();
+       querySnapshot = await q.limit(15).startAfterDocument(lastDocument!).get();
      }
      lastDocument = querySnapshot.docs.last;
      list.addAll(querySnapshot.docs.map((e) => e.data() as Map<String,dynamic>));

@@ -10,6 +10,5 @@ class DataBinding extends Bindings {
     Get.lazyPut(() => ChatController(), fenix: true);
     Get.lazyPut(() => HomeController(), fenix: true);
     Get.lazyPut(() => AudioController(), fenix: true);
-
   }
 }

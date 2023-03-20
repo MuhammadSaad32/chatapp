@@ -29,6 +29,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../contacts/contact_list_screen.dart';
+
 class ChatScreen extends StatefulWidget {
   dynamic userMap;
   String groupId;
@@ -46,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
   File? imageFile;
   File? videoFile;
   double? lat;
+  MessageModel? message;
   double? log;
   List<String> myLocation = [];
   File? audioFile;
@@ -59,6 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String imageUrl = "";
   String videoUrl = "";
   Position? currentPosition;
+  final ScrollController _scrollController = ScrollController();
   VideoPlayerController? _controller;
   Future<void>? _initializeVideoPlayerFuture;
 
@@ -104,7 +108,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }) {
     if (mesContent.trim().isNotEmpty) {
       var uuid = const Uuid();
-      Get.find<ChatController>().chatFieldController.clear();
+      //Get.find<ChatController>().chatFieldController.clear();
       Get.find<ChatController>().sendMessage1(
           messageContent: mesContent,
           readStatus: readStatus,
@@ -144,6 +148,12 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     // _initializeVideoPlayerFuture = _controller!.initialize();
     super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.position.hasPixels ==
+          _scrollController.position.minScrollExtent) {
+        Get.find<ChatController>().getAllMessages(widget.groupId);
+      }
+    });
   }
 
   Widget build(BuildContext context) {
@@ -223,13 +233,14 @@ class _ChatScreenState extends State<ChatScreen> {
               icon: const Icon(Icons.more_vert),
               itemBuilder: (BuildContext context) {
                 return [
-                   PopupMenuItem(
+                  PopupMenuItem(
                     value: "Delete Chat",
                     child: const Text("Delete Chat"),
                     onTap: () {
                       Get.log("Chat is Pressed   ${widget.groupId}");
                       Get.log("Chat is Pressed   ${auth.currentUser!.uid}");
-                      Get.find<ChatController>().deleteChat(groupId: widget.groupId);
+                      Get.find<ChatController>()
+                          .deleteChat(groupId: widget.groupId);
                     },
                   ),
                   const PopupMenuItem(
@@ -345,6 +356,8 @@ class _ChatScreenState extends State<ChatScreen> {
           'receiverLName': widget.userMap['lastName'],
           'timeStamp': DateTime.now().millisecondsSinceEpoch.toString(),
           'messageId': fileName,
+          'lastMessage': 'Image',
+          'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
           'messageType': MessageType.image,
           'readStatus': false,
           //'userStatus': userStatus,
@@ -365,6 +378,7 @@ class _ChatScreenState extends State<ChatScreen> {
           'receiverLName': widget.userMap['lastName'],
           'timeStamp': DateTime.now().millisecondsSinceEpoch.toString(),
           'messageId': fileName,
+
           'messageType': MessageType.image,
           'readStatus': false,
           //'userStatus': userStatus,
@@ -391,7 +405,6 @@ class _ChatScreenState extends State<ChatScreen> {
         });
         if (status == 1) {
           imageUrl = await uploadTask.ref.getDownloadURL();
-
           await FirebaseFirestore.instance
               .collection('chatRoom')
               .doc(widget.groupId)
@@ -426,15 +439,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 .doc(GetStorage().read(auth.currentUser!.uid.toString()))
                 .collection("myUsers")
                 .doc(widget.userMap['id'])
-                .set(
-                    //     {
-                    //   'email': widget.groupId,
-                    //   'senderId': GetStorage().read(auth.currentUser!.uid.toString()),
-                    //   'receiverId': widget.userMap['id'],
-                    //   'firstName': widget.userMap['firstName'],
-                    //   'lastName': widget.userMap['lastName'],
-                    // }
-                    widget.userMap);
+                .set({
+              'email': widget.userMap['email'],
+              'id': widget.userMap['id'],
+              'status': "offline",
+              'lastMessage': 'Image',
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'password': "1234445",
+              'firstName': widget.userMap['firstName'],
+              'lastName': widget.userMap['lastName'],
+              // 'lastName': userDetails.lastName.toString(),
+            });
           }
         });
         await FirebaseFirestore.instance
@@ -457,6 +472,8 @@ class _ChatScreenState extends State<ChatScreen> {
               'email': auth.currentUser!.email,
               'id': auth.currentUser!.uid,
               'status': "offline",
+              'lastMessage': 'Image',
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
               'password': "1234445",
               'firstName': GetStorage()
                   .read('FirstName${auth.currentUser!.uid.toString()}'),
@@ -644,15 +661,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 .doc(GetStorage().read(auth.currentUser!.uid.toString()))
                 .collection("myUsers")
                 .doc(widget.userMap['id'])
-                .set(
-                    //     {
-                    //   'email': widget.groupId,
-                    //   'senderId': GetStorage().read(auth.currentUser!.uid.toString()),
-                    //   'receiverId': widget.userMap['id'],
-                    //   'firstName': widget.userMap['firstName'],
-                    //   'lastName': widget.userMap['lastName'],
-                    // }
-                    widget.userMap);
+                .set({
+              'email': widget.userMap['email'],
+              'id': widget.userMap['id'],
+              'status': "offline",
+              'lastMessage': 'Video',
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'password': "1234445",
+              'firstName': widget.userMap['firstName'],
+              'lastName': widget.userMap['lastName'],
+              // 'lastName': userDetails.lastName.toString(),
+            });
           }
         });
         await FirebaseFirestore.instance
@@ -675,6 +694,8 @@ class _ChatScreenState extends State<ChatScreen> {
               'email': auth.currentUser!.email,
               'id': auth.currentUser!.uid,
               'status': "offline",
+              'lastMessage': 'Video',
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
               'password': "1234445",
               'firstName': GetStorage()
                   .read('FirstName${auth.currentUser!.uid.toString()}'),
@@ -858,15 +879,17 @@ class _ChatScreenState extends State<ChatScreen> {
               .doc(GetStorage().read(auth.currentUser!.uid.toString()))
               .collection("myUsers")
               .doc(widget.userMap['id'])
-              .set(
-                  //     {
-                  //   'email': widget.groupId,
-                  //   'senderId': GetStorage().read(auth.currentUser!.uid.toString()),
-                  //   'receiverId': widget.userMap['id'],
-                  //   'firstName': widget.userMap['firstName'],
-                  //   'lastName': widget.userMap['lastName'],
-                  // }
-                  widget.userMap);
+              .set({
+            'email': widget.userMap['email'],
+            'id': widget.userMap['id'],
+            'status': "offline",
+            'lastMessage': 'Audio',
+            'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+            'password': "1234445",
+            'firstName': widget.userMap['firstName'],
+            'lastName': widget.userMap['lastName'],
+            // 'lastName': userDetails.lastName.toString(),
+          });
         }
       });
       await FirebaseFirestore.instance
@@ -889,6 +912,8 @@ class _ChatScreenState extends State<ChatScreen> {
             'email': auth.currentUser!.email,
             'id': auth.currentUser!.uid,
             'status': "offline",
+            'lastMessage': 'Audio',
+            'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
             'password': "1234445",
             'firstName': GetStorage()
                 .read('FirstName${auth.currentUser!.uid.toString()}'),
@@ -1145,15 +1170,39 @@ class _ChatScreenState extends State<ChatScreen> {
                                           children: [
                                             GestureDetector(
                                               onTap: () {
+                                                Navigator.of(context).pop();
+                                                showModalBottomSheet(context: context, builder: (BuildContext context) {
+                                                  return SafeArea(
+                                                    child: Container(
+                                                      child: Wrap(
+                                                        children: <Widget>[
+                                                          ListTile(
+                                                              leading: Icon(Icons.photo_library),
+                                                              title: Text('Gallery'),
+                                                              onTap: () {
+                                                                Navigator.of(context).pop();
+                                                              }),
+                                                          ListTile(
+                                                            leading: Icon(Icons.photo_camera),
+                                                            title: Text('Camera'),
+                                                            onTap: () {
+                                                              Navigator.of(context).pop();
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },);
                                                 // showDialog(context: context, builder: (context) {
                                                 //   return Row(children: [
                                                 //     Text('Image'),
                                                 //     Text('Video'),
                                                 //   ],);
                                                 // },);
-                                                loading
-                                                    ? const CircularProgressIndicator()
-                                                    : getImageGallery();
+                                                //loading
+                                                  //  ? const CircularProgressIndicator()
+                                                    //: getImageGallery();
                                                 Get.back();
                                               },
                                               child: Container(
@@ -1224,8 +1273,91 @@ class _ChatScreenState extends State<ChatScreen> {
                                                         .myLocation
                                                         .toString(),
                                                     type: MessageType.location);
-                                                Get.back();
-                                                //await getCurrentLatLng();
+                                                await FirebaseFirestore.instance
+                                                    .collection("Users")
+                                                    .doc(GetStorage().read(auth
+                                                        .currentUser!.uid
+                                                        .toString()))
+                                                    .collection("myUsers")
+                                                    .get()
+                                                    .then((value) {
+                                                  if (value.docs.contains(
+                                                      widget.userMap['id'])) {
+                                                    print("user is  available");
+                                                  } else {
+                                                    FirebaseFirestore.instance
+                                                        .collection('Users')
+                                                        .doc(GetStorage().read(
+                                                            auth.currentUser!
+                                                                .uid
+                                                                .toString()))
+                                                        .collection("myUsers")
+                                                        .doc(widget
+                                                            .userMap['id'])
+                                                        .set({
+                                                      'email': widget
+                                                          .userMap['email'],
+                                                      'id':
+                                                          widget.userMap['id'],
+                                                      'status': "offline",
+                                                      'lastMessage': 'Location',
+                                                      'lastMessageTime': DateTime
+                                                              .now()
+                                                          .millisecondsSinceEpoch,
+                                                      'password': "1234445",
+                                                      'firstName': widget
+                                                          .userMap['firstName'],
+                                                      'lastName': widget
+                                                          .userMap['lastName'],
+                                                      // 'lastName': userDetails.lastName.toString(),
+                                                    });
+                                                  }
+                                                });
+                                                await FirebaseFirestore.instance
+                                                    .collection("Users")
+                                                    .doc(widget.userMap['id'])
+                                                    .collection("myUsers")
+                                                    .get()
+                                                    .then((value) {
+                                                  if (value.docs.contains(
+                                                      GetStorage().read(auth
+                                                          .currentUser!.uid
+                                                          .toString()))) {
+                                                    print("user is  available");
+                                                  } else {
+                                                    //for (var element in value.docs) {
+                                                    FirebaseFirestore.instance
+                                                        .collection('Users')
+                                                        .doc(widget
+                                                            .userMap['id'])
+                                                        .collection("myUsers")
+                                                        .doc(GetStorage().read(
+                                                            auth.currentUser!
+                                                                .uid
+                                                                .toString()))
+                                                        .set({
+                                                      'email': auth
+                                                          .currentUser!.email,
+                                                      'id':
+                                                          auth.currentUser!.uid,
+                                                      'status': "offline",
+                                                      'lastMessage': 'Location',
+                                                      'lastMessageTime': DateTime
+                                                              .now()
+                                                          .millisecondsSinceEpoch,
+                                                      'password': "1234445",
+                                                      'firstName': GetStorage()
+                                                          .read(
+                                                              'FirstName${auth.currentUser!.uid.toString()}'),
+                                                      'lastName': GetStorage().read(
+                                                          'LastName${auth.currentUser!.uid.toString()}'),
+                                                      // 'lastName': userDetails.lastName.toString(),
+                                                    });
+                                                    // }
+                                                  }
+                                                  Get.back();
+                                                  //await getCurrentLatLng();
+                                                });
                                               },
                                               child: Container(
                                                 height: getHeight(60),
@@ -1254,7 +1386,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                           children: [
                                             GestureDetector(
                                               onTap: () {
-                                                getVideoGallery();
+                                                Get.to(ContactListScreen());
+                                                //getVideoGallery();
                                               },
                                               child: Container(
                                                 height: getHeight(60),
@@ -1397,7 +1530,32 @@ class _ChatScreenState extends State<ChatScreen> {
                               .read(auth.currentUser!.uid.toString()))
                           .collection("myUsers")
                           .doc(widget.userMap['id'])
-                          .set(widget.userMap);
+                          .set({
+                        'email': widget.userMap['email'],
+                        'id': widget.userMap['id'],
+                        'status': "offline",
+                        'password': "1234445",
+                        'firstName': widget.userMap['firstName'],
+                        'lastName': widget.userMap['lastName'],
+                        'lastMessage': Get.find<ChatController>()
+                            .chatFieldController
+                            .text
+                            .toString(),
+                        'lastMessageTime': DateTime.now().millisecondsSinceEpoch
+                      } //widget.userMap
+                              );
+                      FirebaseFirestore.instance
+                          .collection('Users')
+                          .doc(widget.userMap['id'])
+                          .collection("myUsers")
+                          .doc(GetStorage()
+                              .read(auth.currentUser!.uid.toString()))
+                          .update({
+                        'lastMessage': Get.find<ChatController>()
+                            .getLastMessage(widget.groupId),
+                        'lastMessageTime':
+                            DateTime.now().millisecondsSinceEpoch,
+                      });
                     }
                   });
                   await FirebaseFirestore.instance
@@ -1422,15 +1580,137 @@ class _ChatScreenState extends State<ChatScreen> {
                         'id': auth.currentUser!.uid,
                         'status': "offline",
                         'password': "1234445",
+                        'lastMessage': Get.find<ChatController>()
+                            .chatFieldController
+                            .text
+                            .toString(),
+                        'lastMessageTime':
+                            DateTime.now().millisecondsSinceEpoch,
+                        // 'lastMessage': StreamBuilder(
+                        //   stream: Get.find<ChatController>()
+                        //       .getLastMessage((auth.currentUser!
+                        //       .uid.hashCode +
+                        //       widget.userMap['id']
+                        //           .hashCode)
+                        //       .toString()),
+                        //   builder: (context, snapshot) {
+                        //     if (snapshot.connectionState ==
+                        //         ConnectionState.waiting) {
+                        //       return const Center(
+                        //         child:
+                        //         CircularProgressIndicator(),
+                        //       );
+                        //     }
+                        //     final data = snapshot.data!.docs;
+                        //     final list = data
+                        //         .map((e) =>
+                        //         MessageModel.fromJson(
+                        //             e))
+                        //         .toList() ??
+                        //         [];
+                        //     //Get.log("List data is $list");
+                        //     //Get.log("List data is ${list[0].receiverLName}");
+                        //     if (list.isNotEmpty) {
+                        //       message = list[0];
+                        //       return Column(
+                        //         crossAxisAlignment:
+                        //         CrossAxisAlignment.start,
+                        //         children: [
+                        //           Row(
+                        //             mainAxisAlignment:
+                        //             MainAxisAlignment
+                        //                 .spaceBetween,
+                        //             children: [
+                        //               SizedBox(
+                        //                 width: getWidth(100),
+                        //                 child: Text(
+                        //                   maxLines: 1,
+                        //                   overflow: TextOverflow
+                        //                       .ellipsis,
+                        //                   message != null
+                        //                       ? message!.type ==
+                        //                       MessageType
+                        //                           .image
+                        //                       ? 'Image'
+                        //                       : message!.type ==
+                        //                       MessageType
+                        //                           .video
+                        //                       ? 'Video'
+                        //                       : message!.type ==
+                        //                       MessageType.audio
+                        //                       ? 'Audio File'
+                        //                       : message!.type == MessageType.location
+                        //                       ? 'Location '
+                        //                       : message?.type == MessageType.text
+                        //                       ? message!.messageContent
+                        //                       : ""
+                        //                       : "No Message",
+                        //                   style: const TextStyle(
+                        //                       color: MyColors
+                        //                           .black),
+                        //                 ),
+                        //               ),
+                        //               GestureDetector(
+                        //                 child: Padding(
+                        //                   padding:
+                        //                   const EdgeInsets
+                        //                       .all(8.0),
+                        //                   child: Text(
+                        //                     Get.find<
+                        //                         HomeController>()
+                        //                         .getLastMessageTime(
+                        //                         context:
+                        //                         context,
+                        //                         time: message!
+                        //                             .timestamp,
+                        //                         showYear:
+                        //                         false),
+                        //                     style: const TextStyle(
+                        //                         color: MyColors
+                        //                             .black),
+                        //                   ),
+                        //                 ),
+                        //                 onTap: () {
+                        //                   // Get.find<ChatController>().getUnreadMessageLength(groupChatId: (
+                        //                   //     userDetails.id.hashCode + GetStorage().read(auth.currentUser!.uid.toString())
+                        //                   //         .hashCode)
+                        //                   //     .toString());
+                        //                 },
+                        //               ),
+                        //             ],
+                        //           ),
+                        //         ],
+                        //       );
+                        //     } else {
+                        //       return const Text(
+                        //           'No Message Here-------',
+                        //           textAlign: TextAlign.left);
+                        //     }
+                        //   },
+                        // ),
                         'firstName': GetStorage().read(
                             'FirstName${auth.currentUser!.uid.toString()}'),
                         'lastName': GetStorage().read(
                             'LastName${auth.currentUser!.uid.toString()}'),
                         // 'lastName': userDetails.lastName.toString(),
                       });
+
+                      FirebaseFirestore.instance
+                          .collection('Users')
+                          .doc(auth.currentUser!.uid)
+                          .collection("myUsers")
+                          .doc(GetStorage()
+                              .read(auth.currentUser!.uid.toString()))
+                          .update({
+                        'lastMessage': Get.find<ChatController>()
+                            .getLastMessage(widget.groupId),
+                        'lastMessageTime':
+                            DateTime.now().millisecondsSinceEpoch,
+                      });
                       // }
                     }
                   });
+                  Get.find<ChatController>().chatFieldController.clear();
                 },
                 // onPressed: () {
                 //   Get.log("TextEditing value is ${Get.find<ChatController>().chatFieldController.text.toString()}");
@@ -1476,7 +1756,8 @@ class _ChatScreenState extends State<ChatScreen> {
               stream: Get.find<ChatController>().getAllMessages(widget.groupId),
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  Get.find<ChatController>().updateMessageReadStatus(widget.groupId, widget.userMap);
+                  Get.find<ChatController>()
+                      .updateMessageReadStatus(widget.groupId, widget.userMap);
                   Get.find<ChatController>().messagesList =
                       snapshot.data!.docs.reversed.toList();
                   if (Get.find<ChatController>().messagesList.isNotEmpty) {
@@ -1561,6 +1842,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     //     ),
                     //   );
                     return ListView.builder(
+                      controller: _scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(10),
                       itemBuilder: (context, index) => buildItem(index,
@@ -1723,45 +2005,41 @@ class _ChatScreenState extends State<ChatScreen> {
                                       .doc(widget.userMap['id'])
                                       .snapshots(),
                                   builder: (context, snapshot1) {
-                                    if(snapshot1.connectionState == ConnectionState.waiting){
+                                    if (snapshot1.connectionState ==
+                                        ConnectionState.waiting) {
                                       return const Center(
                                         child: CircularProgressIndicator(
                                           color: MyColors.primaryColor,
                                         ),
                                       );
-                                    }
-                                    else{
+                                    } else {
                                       if (snapshot1.connectionState ==
-                                          ConnectionState.active ||
+                                              ConnectionState.active ||
                                           snapshot1.connectionState ==
-                                              ConnectionState.done){
-                                        if(snapshot1.hasError){
+                                              ConnectionState.done) {
+                                        if (snapshot1.hasError) {
                                           return Text(
                                               snapshot1.error.toString());
-                                        }
-                                        else{
-                                          return snapshot1.data![
-                                          'status'] ==
-                                              'Online' &&
-                                              messageModel.readStatus==
-                                                  false
+                                        } else {
+                                          return snapshot1.data!['status'] ==
+                                                      'Online' &&
+                                                  messageModel.readStatus ==
+                                                      false
                                               ? Icon(Icons.done_all,
-                                              color: MyColors.black,
-                                              size: getHeight(15))
-                                              : messageModel.readStatus ==
-                                              true
-                                              ? Icon(
-                                              Icons.done_all,
-                                              color:
-                                              MyColors.blue10,
-                                              size: getHeight(15))
-                                              : Icon(Icons.check,
-                                              size:
-                                              getHeight(15));
+                                                  color: MyColors.black,
+                                                  size: getHeight(15))
+                                              : messageModel.readStatus == true
+                                                  ? Icon(Icons.done_all,
+                                                      color: MyColors.blue10,
+                                                      size: getHeight(15))
+                                                  : Icon(Icons.check,
+                                                      size: getHeight(15));
                                         }
                                       }
                                     }
-                                     return Center(child: CircularProgressIndicator(),);
+                                    return Center(
+                                      child: CircularProgressIndicator(),
+                                    );
                                     // return StreamBuilder(
                                     //   stream: FirebaseFirestore.instance
                                     //       .collection('chatRoom')
@@ -2137,49 +2415,59 @@ class _ChatScreenState extends State<ChatScreen> {
                                   child: Column(
                                     children: [
                                       GestureDetector(
-                                        onLongPress: () {
-                                          DialogueBox().deleteMessage(context,
-                                              () {
-                                            Get.find<ChatController>()
-                                                .deleteSingleMessage(
-                                                    groupId: widget.groupId,
-                                                    messageId:
-                                                        messageModel.messageId);
-                                            Get.back();
-                                          });
+                                          onLongPress: () {
+                                            DialogueBox().deleteMessage(context,
+                                                () {
+                                              Get.find<ChatController>()
+                                                  .deleteSingleMessage(
+                                                      groupId: widget.groupId,
+                                                      messageId: messageModel
+                                                          .messageId);
+                                              Get.back();
+                                            });
 
-                                          //Get.log("Text Message is Pressed$index");
-                                        },
-                                        child: Container(
-                                            constraints: BoxConstraints(
-                                                maxWidth: getWidth(200),
-                                                minHeight: getHeight(200),
-                                                maxHeight: getHeight(200),
-                                                minWidth: getWidth(200)),
-                                            decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(8),
-                                                border: Border.all(color: MyColors.primaryColor)
-                                            ),
-                                            //height: getHeight(200),
-                                            //width: getWidth(200),
-                                            //decoration: BoxDecoration(color: Colors.red),
-                                            child: messageModel.messageContent ==
-                                                    ""
-                                                ? const Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                    color:
-                                                        MyColors.primaryColor,
-                                                  ))
-                                                : Stack(
-                                                  children:[
-                                                    //Text(messageModel.messageContent.toString()),
-                                                    GestureDetector(
-                                                        onTap: (){
-                                                          Get.to(VideoPlayerScreen(url: messageModel.messageContent,));
-                                                        },
-                                                        child: Center(child: Icon(Icons.play_arrow,size: getHeight(25),)))
-                                                ]))),
+                                            //Get.log("Text Message is Pressed$index");
+                                          },
+                                          child: Container(
+                                              constraints: BoxConstraints(
+                                                  maxWidth: getWidth(200),
+                                                  minHeight: getHeight(200),
+                                                  maxHeight: getHeight(200),
+                                                  minWidth: getWidth(200)),
+                                              decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                      color: MyColors
+                                                          .primaryColor)),
+                                              //height: getHeight(200),
+                                              //width: getWidth(200),
+                                              //decoration: BoxDecoration(color: Colors.red),
+                                              child: messageModel
+                                                          .messageContent ==
+                                                      ""
+                                                  ? const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                      color:
+                                                          MyColors.primaryColor,
+                                                    ))
+                                                  : Stack(children: [
+                                                      //Text(messageModel.messageContent.toString()),
+                                                      GestureDetector(
+                                                          onTap: () {
+                                                            Get.to(
+                                                                VideoPlayerScreen(
+                                                              url: messageModel
+                                                                  .messageContent,
+                                                            ));
+                                                          },
+                                                          child: Center(
+                                                              child: Icon(
+                                                            Icons.play_arrow,
+                                                            size: getHeight(25),
+                                                          )))
+                                                    ]))),
                                     ],
                                   ),
                                 ),
@@ -3228,379 +3516,70 @@ class _ChatScreenState extends State<ChatScreen> {
                         //child: const Center(child: CircularProgressIndicator(color: MyColors.primaryColor,),),),
                       ],
                     )
-          :messageModel.type == MessageType.video
-              ? Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      children: [
-                        GestureDetector(
-                            onLongPress: () {
-                              DialogueBox().deleteMessage(context,
-                                      () {
-                                    Get.find<ChatController>()
-                                        .deleteSingleMessage(
-                                        groupId: widget.groupId,
-                                        messageId:
-                                        messageModel.messageId);
-                                    Get.back();
-                                  });
-
-                              //Get.log("Text Message is Pressed$index");
-                            },
-                            child: Container(
-                                constraints: BoxConstraints(
-                                    maxWidth: getWidth(200),
-                                    minHeight: getHeight(200),
-                                    maxHeight: getHeight(200),
-                                    minWidth: getWidth(200)),
-                                decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: MyColors.primaryColor)
-                                ),
-                                //height: getHeight(200),
-                                //width: getWidth(200),
-                                //decoration: BoxDecoration(color: Colors.red),
-                                child: messageModel.messageContent ==
-                                    ""
-                                    ? const Center(
-                                    child:
-                                    CircularProgressIndicator(
-                                      color:
-                                      MyColors.primaryColor,
-                                    ))
-                                    : Stack(
-                                    children:[
-                                      //Text(messageModel.messageContent.toString()),
-                                      GestureDetector(
-                                          onTap: (){
-                                            Get.to(VideoPlayerScreen(url: messageModel.messageContent,));
-                                          },
-                                          child: Center(child: Icon(Icons.play_arrow,size: getHeight(25),)))
-                                    ]))),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    bottom: getHeight(10),
-                    right: getWidth(10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.8),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            DateFormatUtil.getFormattedTime(
-                                context: context,
-                                time: messageModel.timestamp),
-                            // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
-                            // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: MyColors.white
-                                    .withOpacity(0.8)),
-                          ),
-                          StreamBuilder(
-                            stream: FirebaseFirestore.instance
-                                .collection('Users')
-                                .doc(widget.userMap['id'])
-                                .snapshots(),
-                            builder: (context, snapshot1) {
-                              return StreamBuilder(
-                                stream: FirebaseFirestore.instance
-                                    .collection('chatRoom')
-                                    .doc(widget.groupId)
-                                    .collection('ChatUsers')
-                                    .doc(auth.currentUser!.uid)
-                                    .collection('message')
-                                    .snapshots(),
-                                builder: (context, snapshot2) {
-                                  if (snapshot1.connectionState ==
-                                      ConnectionState
-                                          .waiting ||
-                                      snapshot2.connectionState ==
-                                          ConnectionState
-                                              .waiting) {
-                                    return const Center(
-                                      child:
-                                      CircularProgressIndicator(
-                                        color:
-                                        MyColors.primaryColor,
-                                      ),
-                                    );
-                                  } else {
-                                    if (snapshot1.connectionState == ConnectionState.active ||
-                                        snapshot1
-                                            .connectionState ==
-                                            ConnectionState
-                                                .done ||
-                                        snapshot2
-                                            .connectionState ==
-                                            ConnectionState
-                                                .active ||
-                                        snapshot2
-                                            .connectionState ==
-                                            ConnectionState
-                                                .done) {
-                                      if (snapshot1.hasError ||
-                                          snapshot2.hasError) {
-                                        return Text(snapshot1
-                                            .error
-                                            .toString());
-                                      } else {
-                                        //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                        //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                        for (var element
-                                        in snapshot2
-                                            .data!.docs) {
-                                          return snapshot1.data![
-                                          'status'] ==
-                                              'Online' &&
-                                              element['readStatus'] ==
-                                                  false
-                                              ? Icon(
-                                              Icons.done_all,
-                                              color: MyColors
-                                                  .black,
-                                              size:
-                                              getHeight(
-                                                  15))
-                                              : element['readStatus'] ==
-                                              true
-                                              ? Icon(
-                                              Icons
-                                                  .done_all,
-                                              color: MyColors
-                                                  .blue10,
-                                              size:
-                                              getHeight(
-                                                  15))
-                                              : Icon(
-                                              Icons.check,
-                                              size:
-                                              getHeight(
-                                                  15));
-                                        }
-                                        // return snapshot1.data!['status'] ==
-                                        // 'Online' &&
-                                        //  snapshot2.data![
-                                        //  'readStatus'] ==
-                                        //     false
-                                        // ? Icon(Icons.done_all,
-                                        // color: MyColors.black,
-                                        // size: getHeight(15))
-                                        // : snapshot2.data!['readStatus'] ==
-                                        //  true
-                                        // ? Icon(Icons.done_all,
-                                        // color: MyColors.blue10,
-                                        //  size: getHeight(15))
-                                        // : Icon(Icons.check,
-                                        // size: getHeight(15));
-                                      }
-                                    }
-                                  }
-                                  return const SizedBox();
-
-                                  // do some stuff with both streams here
-                                },
-                              );
-                            },
-                          ),
-
-                          // StreamBuilder(
-                          //   stream: FirebaseFirestore.instance
-                          //       .collection('Users')
-                          //       .doc(widget.userMap['id'])
-                          //       .snapshots(),
-                          //   builder: (context, snapshot1) {
-                          //     return StreamBuilder(
-                          //       stream: FirebaseFirestore.instance
-                          //           .collection('chatRoom')
-                          //           .doc(widget.groupId)
-                          //           .collection('ChatUsers')
-                          //           .doc(auth.currentUser!.uid)
-                          //           .collection('message')
-                          //           .doc(messageModel.messageId)
-                          //           .snapshots(),
-                          //       builder: (context, snapshot2) {
-                          //         if (snapshot1.connectionState ==
-                          //                 ConnectionState.waiting ||
-                          //             snapshot2.connectionState ==
-                          //                 ConnectionState.waiting) {
-                          //           return const Center(
-                          //             child: CircularProgressIndicator(
-                          //               color: MyColors.primaryColor,
-                          //             ),
-                          //           );
-                          //         } else {
-                          //           if (snapshot1.connectionState ==
-                          //                   ConnectionState.active ||
-                          //               snapshot1.connectionState ==
-                          //                   ConnectionState.done ||
-                          //               snapshot2.connectionState ==
-                          //                   ConnectionState.active ||
-                          //               snapshot2.connectionState ==
-                          //                   ConnectionState.done) {
-                          //             if (snapshot1.hasError ||
-                          //                 snapshot2.hasError) {
-                          //               return Text(
-                          //                   snapshot1.error.toString());
-                          //             } else {
-                          //               return snapshot1.data![
-                          //                               'status'] ==
-                          //                           'Online' &&
-                          //                       snapshot2.data![
-                          //                               'readStatus'] ==
-                          //                           false
-                          //                   ? Icon(Icons.done_all,
-                          //                       color: MyColors.black,
-                          //                       size: getHeight(15))
-                          //                   : snapshot2.data![
-                          //                               'readStatus'] ==
-                          //                           true
-                          //                       ? Icon(
-                          //                           Icons.done_all,
-                          //                           color:
-                          //                               MyColors.blue10,
-                          //                           size: getHeight(15))
-                          //                       : Icon(Icons.check,
-                          //                           size:
-                          //                               getHeight(15));
-                          //             }
-                          //           }
-                          //         }
-                          //         return const SizedBox();
-                          //
-                          //         // do some stuff with both streams here
-                          //       },
-                          //     );
-                          //   },
-                          // ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              )
-              //:SizedBox(height: getHeight(200),width: getWidth(200),
-              //child: const Center(child: CircularProgressIndicator(color: MyColors.primaryColor,),),),
-            ],
-          )
-                  : messageModel.type == MessageType.audio
+                  : messageModel.type == MessageType.video
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Stack(
-                              children: [
-                                audio(
-                                    message: messageModel.messageContent,
-                                    isCurrentUser: messageModel.currentID ==
-                                        Get.find<HomeController>()
-                                            .currentUserID,
-                                    index: index,
-                                    time: messageModel.timestamp.toString(),
-                                    duration: messageModel.duration.toString()),
-                                SizedBox(
-                                  height: getHeight(3),
-                                ),
-                                Positioned(
-                                  bottom: getHeight(10),
-                                  right: getWidth(10),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        DateFormatUtil.getFormattedTime(
-                                            context: context,
-                                            time: messageModel.timestamp!),
-                                        // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
-                                        // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            color: MyColors.white
-                                                .withOpacity(0.8)),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        )
-                      : messageModel.type == MessageType.location
-                          ? Stack(
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Column(
                                     children: [
                                       GestureDetector(
-                                        // onTap: (){
-                                        //   Get.log("Mapped pressed");
-                                        //   Get.log('lat on map is ${Get.find<ChatController>().lat!}');
-                                        //   Get.log('lng on map is ${Get.find<ChatController>().long!}');
-                                        //   navigateTo(lat: Get.find<ChatController>().lat! ,lng: Get.find<ChatController>().long!);
-                                        // },
-                                        onLongPress: () {
-                                          DialogueBox().deleteMessage(context,
-                                              () {
-                                            Get.find<ChatController>()
-                                                .deleteSingleMessage(
-                                                    groupId: widget.groupId,
-                                                    messageId:
-                                                        messageModel.messageId);
-                                            Get.back();
-                                          });
+                                          onLongPress: () {
+                                            DialogueBox().deleteMessage(context,
+                                                () {
+                                              Get.find<ChatController>()
+                                                  .deleteSingleMessage(
+                                                      groupId: widget.groupId,
+                                                      messageId: messageModel
+                                                          .messageId);
+                                              Get.back();
+                                            });
 
-                                          Get.log(
-                                              "Text Message is Pressed$index");
-                                        },
-                                        child: Container(
-                                            constraints: BoxConstraints(
-                                                maxWidth: getWidth(200),
-                                                minHeight: getHeight(200),
-                                                maxHeight: getHeight(200),
-                                                minWidth: getWidth(200)),
-                                            decoration: BoxDecoration(
-                                                color: Colors.red,
-                                                borderRadius:
-                                                    BorderRadius.circular(8)),
-                                            //height: getHeight(200),
-                                            //width: getWidth(200),
-                                            //decoration: BoxDecoration(color: Colors.red),
-                                            child: GoogleMap(
-                                              onTap: (argument) {
-                                                Get.log("Mapped pressed");
-                                                Get.log(
-                                                    'lat on map is ${Get.find<ChatController>().lat!}');
-                                                Get.log(
-                                                    'lng on map is ${Get.find<ChatController>().long!}');
-                                                navigateTo(
-                                                    lat: Get.find<
-                                                            ChatController>()
-                                                        .lat!,
-                                                    lng: Get.find<
-                                                            ChatController>()
-                                                        .long!);
-                                              },
-                                              myLocationEnabled: true,
-                                              zoomControlsEnabled: false,
-                                              zoomGesturesEnabled: false,
-                                              initialCameraPosition:
-                                                  CameraPosition(
-                                                target: LatLng(
-                                                    Get.find<ChatController>()
-                                                        .lat!,
-                                                    Get.find<ChatController>()
-                                                        .long!),
-                                                zoom: 16,
-                                              ),
-                                            )),
-                                      ),
+                                            //Get.log("Text Message is Pressed$index");
+                                          },
+                                          child: Container(
+                                              constraints: BoxConstraints(
+                                                  maxWidth: getWidth(200),
+                                                  minHeight: getHeight(200),
+                                                  maxHeight: getHeight(200),
+                                                  minWidth: getWidth(200)),
+                                              decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                      color: MyColors
+                                                          .primaryColor)),
+                                              //height: getHeight(200),
+                                              //width: getWidth(200),
+                                              //decoration: BoxDecoration(color: Colors.red),
+                                              child: messageModel
+                                                          .messageContent ==
+                                                      ""
+                                                  ? const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                      color:
+                                                          MyColors.primaryColor,
+                                                    ))
+                                                  : Stack(children: [
+                                                      //Text(messageModel.messageContent.toString()),
+                                                      GestureDetector(
+                                                          onTap: () {
+                                                            Get.to(
+                                                                VideoPlayerScreen(
+                                                              url: messageModel
+                                                                  .messageContent,
+                                                            ));
+                                                          },
+                                                          child: Center(
+                                                              child: Icon(
+                                                            Icons.play_arrow,
+                                                            size: getHeight(25),
+                                                          )))
+                                                    ]))),
                                     ],
                                   ),
                                 ),
@@ -3806,9 +3785,339 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                               ],
                             )
-                          : const CircularProgressIndicator(
-                              color: MyColors.primaryColor,
+                            //:SizedBox(height: getHeight(200),width: getWidth(200),
+                            //child: const Center(child: CircularProgressIndicator(color: MyColors.primaryColor,),),),
+                          ],
+                        )
+                      : messageModel.type == MessageType.audio
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Stack(
+                                  children: [
+                                    audio(
+                                        message: messageModel.messageContent,
+                                        isCurrentUser: messageModel.currentID ==
+                                            Get.find<HomeController>()
+                                                .currentUserID,
+                                        index: index,
+                                        time: messageModel.timestamp.toString(),
+                                        duration:
+                                            messageModel.duration.toString()),
+                                    SizedBox(
+                                      height: getHeight(3),
+                                    ),
+                                    Positioned(
+                                      bottom: getHeight(10),
+                                      right: getWidth(10),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            DateFormatUtil.getFormattedTime(
+                                                context: context,
+                                                time: messageModel.timestamp!),
+                                            // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
+                                            // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: MyColors.white
+                                                    .withOpacity(0.8)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             )
+                          : messageModel.type == MessageType.location
+                              ? Stack(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Column(
+                                        children: [
+                                          GestureDetector(
+                                            // onTap: (){
+                                            //   Get.log("Mapped pressed");
+                                            //   Get.log('lat on map is ${Get.find<ChatController>().lat!}');
+                                            //   Get.log('lng on map is ${Get.find<ChatController>().long!}');
+                                            //   navigateTo(lat: Get.find<ChatController>().lat! ,lng: Get.find<ChatController>().long!);
+                                            // },
+                                            onLongPress: () {
+                                              DialogueBox()
+                                                  .deleteMessage(context, () {
+                                                Get.find<ChatController>()
+                                                    .deleteSingleMessage(
+                                                        groupId: widget.groupId,
+                                                        messageId: messageModel
+                                                            .messageId);
+                                                Get.back();
+                                              });
+
+                                              Get.log(
+                                                  "Text Message is Pressed$index");
+                                            },
+                                            child: Container(
+                                                constraints: BoxConstraints(
+                                                    maxWidth: getWidth(200),
+                                                    minHeight: getHeight(200),
+                                                    maxHeight: getHeight(200),
+                                                    minWidth: getWidth(200)),
+                                                decoration: BoxDecoration(
+                                                    color: Colors.red,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8)),
+                                                //height: getHeight(200),
+                                                //width: getWidth(200),
+                                                //decoration: BoxDecoration(color: Colors.red),
+                                                child: GoogleMap(
+                                                  onTap: (argument) {
+                                                    Get.log("Mapped pressed");
+                                                    Get.log(
+                                                        'lat on map is ${Get.find<ChatController>().lat!}');
+                                                    Get.log(
+                                                        'lng on map is ${Get.find<ChatController>().long!}');
+                                                    navigateTo(
+                                                        lat: Get.find<
+                                                                ChatController>()
+                                                            .lat!,
+                                                        lng: Get.find<
+                                                                ChatController>()
+                                                            .long!);
+                                                  },
+                                                  myLocationEnabled: true,
+                                                  zoomControlsEnabled: false,
+                                                  zoomGesturesEnabled: false,
+                                                  initialCameraPosition:
+                                                      CameraPosition(
+                                                    target: LatLng(
+                                                        Get.find<
+                                                                ChatController>()
+                                                            .lat!,
+                                                        Get.find<
+                                                                ChatController>()
+                                                            .long!),
+                                                    zoom: 16,
+                                                  ),
+                                                )),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: getHeight(10),
+                                      right: getWidth(10),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withOpacity(0.8),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              DateFormatUtil.getFormattedTime(
+                                                  context: context,
+                                                  time: messageModel.timestamp),
+                                              // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
+                                              // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
+                                              style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: MyColors.white
+                                                      .withOpacity(0.8)),
+                                            ),
+                                            StreamBuilder(
+                                              stream: FirebaseFirestore.instance
+                                                  .collection('Users')
+                                                  .doc(widget.userMap['id'])
+                                                  .snapshots(),
+                                              builder: (context, snapshot1) {
+                                                return StreamBuilder(
+                                                  stream: FirebaseFirestore
+                                                      .instance
+                                                      .collection('chatRoom')
+                                                      .doc(widget.groupId)
+                                                      .collection('ChatUsers')
+                                                      .doc(
+                                                          auth.currentUser!.uid)
+                                                      .collection('message')
+                                                      .snapshots(),
+                                                  builder:
+                                                      (context, snapshot2) {
+                                                    if (snapshot1
+                                                                .connectionState ==
+                                                            ConnectionState
+                                                                .waiting ||
+                                                        snapshot2
+                                                                .connectionState ==
+                                                            ConnectionState
+                                                                .waiting) {
+                                                      return const Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          color: MyColors
+                                                              .primaryColor,
+                                                        ),
+                                                      );
+                                                    } else {
+                                                      if (snapshot1.connectionState == ConnectionState.active ||
+                                                          snapshot1
+                                                                  .connectionState ==
+                                                              ConnectionState
+                                                                  .done ||
+                                                          snapshot2
+                                                                  .connectionState ==
+                                                              ConnectionState
+                                                                  .active ||
+                                                          snapshot2
+                                                                  .connectionState ==
+                                                              ConnectionState
+                                                                  .done) {
+                                                        if (snapshot1
+                                                                .hasError ||
+                                                            snapshot2
+                                                                .hasError) {
+                                                          return Text(snapshot1
+                                                              .error
+                                                              .toString());
+                                                        } else {
+                                                          //Get.log("Else Called  ${snapshot1.data!['status']}");
+                                                          //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
+                                                          for (var element
+                                                              in snapshot2
+                                                                  .data!.docs) {
+                                                            return snapshot1.data![
+                                                                            'status'] ==
+                                                                        'Online' &&
+                                                                    element['readStatus'] ==
+                                                                        false
+                                                                ? Icon(
+                                                                    Icons
+                                                                        .done_all,
+                                                                    color: MyColors
+                                                                        .black,
+                                                                    size:
+                                                                        getHeight(
+                                                                            15))
+                                                                : element['readStatus'] ==
+                                                                        true
+                                                                    ? Icon(
+                                                                        Icons
+                                                                            .done_all,
+                                                                        color: MyColors
+                                                                            .blue10,
+                                                                        size: getHeight(
+                                                                            15))
+                                                                    : Icon(
+                                                                        Icons
+                                                                            .check,
+                                                                        size: getHeight(
+                                                                            15));
+                                                          }
+                                                          // return snapshot1.data!['status'] ==
+                                                          // 'Online' &&
+                                                          //  snapshot2.data![
+                                                          //  'readStatus'] ==
+                                                          //     false
+                                                          // ? Icon(Icons.done_all,
+                                                          // color: MyColors.black,
+                                                          // size: getHeight(15))
+                                                          // : snapshot2.data!['readStatus'] ==
+                                                          //  true
+                                                          // ? Icon(Icons.done_all,
+                                                          // color: MyColors.blue10,
+                                                          //  size: getHeight(15))
+                                                          // : Icon(Icons.check,
+                                                          // size: getHeight(15));
+                                                        }
+                                                      }
+                                                    }
+                                                    return const SizedBox();
+
+                                                    // do some stuff with both streams here
+                                                  },
+                                                );
+                                              },
+                                            ),
+
+                                            // StreamBuilder(
+                                            //   stream: FirebaseFirestore.instance
+                                            //       .collection('Users')
+                                            //       .doc(widget.userMap['id'])
+                                            //       .snapshots(),
+                                            //   builder: (context, snapshot1) {
+                                            //     return StreamBuilder(
+                                            //       stream: FirebaseFirestore.instance
+                                            //           .collection('chatRoom')
+                                            //           .doc(widget.groupId)
+                                            //           .collection('ChatUsers')
+                                            //           .doc(auth.currentUser!.uid)
+                                            //           .collection('message')
+                                            //           .doc(messageModel.messageId)
+                                            //           .snapshots(),
+                                            //       builder: (context, snapshot2) {
+                                            //         if (snapshot1.connectionState ==
+                                            //                 ConnectionState.waiting ||
+                                            //             snapshot2.connectionState ==
+                                            //                 ConnectionState.waiting) {
+                                            //           return const Center(
+                                            //             child: CircularProgressIndicator(
+                                            //               color: MyColors.primaryColor,
+                                            //             ),
+                                            //           );
+                                            //         } else {
+                                            //           if (snapshot1.connectionState ==
+                                            //                   ConnectionState.active ||
+                                            //               snapshot1.connectionState ==
+                                            //                   ConnectionState.done ||
+                                            //               snapshot2.connectionState ==
+                                            //                   ConnectionState.active ||
+                                            //               snapshot2.connectionState ==
+                                            //                   ConnectionState.done) {
+                                            //             if (snapshot1.hasError ||
+                                            //                 snapshot2.hasError) {
+                                            //               return Text(
+                                            //                   snapshot1.error.toString());
+                                            //             } else {
+                                            //               return snapshot1.data![
+                                            //                               'status'] ==
+                                            //                           'Online' &&
+                                            //                       snapshot2.data![
+                                            //                               'readStatus'] ==
+                                            //                           false
+                                            //                   ? Icon(Icons.done_all,
+                                            //                       color: MyColors.black,
+                                            //                       size: getHeight(15))
+                                            //                   : snapshot2.data![
+                                            //                               'readStatus'] ==
+                                            //                           true
+                                            //                       ? Icon(
+                                            //                           Icons.done_all,
+                                            //                           color:
+                                            //                               MyColors.blue10,
+                                            //                           size: getHeight(15))
+                                            //                       : Icon(Icons.check,
+                                            //                           size:
+                                            //                               getHeight(15));
+                                            //             }
+                                            //           }
+                                            //         }
+                                            //         return const SizedBox();
+                                            //
+                                            //         // do some stuff with both streams here
+                                            //       },
+                                            //     );
+                                            //   },
+                                            // ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const CircularProgressIndicator(
+                                  color: MyColors.primaryColor,
+                                )
         ],
       );
     }

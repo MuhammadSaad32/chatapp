@@ -117,6 +117,7 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     Get.find<ChatController>().getCurrentLatLng();
+    print("Currenrtern ${Get.find<ChatController>().myLocation}");
     super.onInit();
   }
 }
