@@ -13,6 +13,7 @@ import '../../values/my_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/toast.dart';
 import '../allusers/all_users_screen.dart';
+import '../contacts/contact_list_screen.dart';
 import '../chat/chat_screen.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -225,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         actions: [
           GestureDetector(
               onTap: () {
-                //Get.to(const ContactList());
+                Get.to(ContactListScreen());
               },
               child: const Icon(Icons.search)),
           SizedBox(width: getWidth(10)),
@@ -258,6 +259,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   .collection('Users')
                   .doc(GetStorage().read(auth.currentUser!.uid.toString()))
                   .collection("myUsers")
+                  .orderBy('lastMessageTime', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -284,11 +286,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       itemBuilder: (context, index) {
                         // return homeBuild(context, snapshot.data?.docs[index]);
                         return GestureDetector(
-                          onTap: () {
+                          onTap: () async {
                             //Get.find<ChatController>().updateMessageReadStatus(
-                              //   (auth.currentUser!.uid.hashCode +
-                                // snapshot.data!.docs[index]['id'].hashCode).toString(),
-                                 //snapshot.data!.docs[index].data());
+                            //   (auth.currentUser!.uid.hashCode +
+                            // snapshot.data!.docs[index]['id'].hashCode).toString(),
+                            //snapshot.data!.docs[index].data());
+                            await Get.find<ChatController>().getCurrentLatLng();
                             Get.log(
                                 "12321  ${snapshot.data!.docs[index].data()['id']}");
                             Get.to(ChatScreen(
@@ -321,128 +324,144 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       )),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '${snapshot.data!.docs[index]['firstName']} ${snapshot.data!.docs[index]['lastName']}',
                                           style: const TextStyle(
                                               color: MyColors.primaryColor),
                                         ),
-                                        // SizedBox(
-                                        //   height: getHeight(5),
-                                        // ),
-                                        StreamBuilder(
-                                          stream: Get.find<ChatController>()
-                                              .getLastMessage((auth.currentUser!
-                                                          .uid.hashCode +
-                                                      snapshot
-                                                          .data!
-                                                          .docs[index]['id']
-                                                          .hashCode)
-                                                  .toString()),
-                                          builder: (context, snapshot) {
-                                            if (snapshot.connectionState ==
-                                                ConnectionState.waiting) {
-                                              return const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
-                                              );
-                                            }
-                                            final data = snapshot.data!.docs;
-                                            final list = data
-                                                    .map((e) =>
-                                                        MessageModel.fromJson(
-                                                            e))
-                                                    .toList() ??
-                                                [];
-                                            //Get.log("List data is $list");
-                                            //Get.log("List data is ${list[0].receiverLName}");
-                                            if (list.isNotEmpty) {
-                                              message = list[0];
-                                              return Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      SizedBox(
-                                                        width: getWidth(100),
-                                                        child: Text(
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          message != null
-                                                              ? message!.type ==
-                                                                      MessageType
-                                                                          .image
-                                                                  ? 'Image'
-                                                                  : message!.type ==
-                                                                          MessageType
-                                                                              .video
-                                                                      ? 'Video'
-                                                                      : message!.type ==
-                                                                              MessageType.audio
-                                                                          ? 'Audio File'
-                                                                          : message!.type == MessageType.location
-                                                                              ? 'Location '
-                                                                              : message?.type == MessageType.text
-                                                                                  ? message!.messageContent
-                                                                                  : ""
-                                                              : "No Message",
-                                                          style: const TextStyle(
-                                                              color: MyColors
-                                                                  .black),
-                                                        ),
-                                                      ),
-                                                      GestureDetector(
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .all(8.0),
-                                                          child: Text(
-                                                            Get.find<
-                                                                    HomeController>()
-                                                                .getLastMessageTime(
-                                                                    context:
-                                                                        context,
-                                                                    time: message!
-                                                                        .timestamp,
-                                                                    showYear:
-                                                                        false),
-                                                            style: const TextStyle(
-                                                                color: MyColors
-                                                                    .black),
-                                                          ),
-                                                        ),
-                                                        onTap: () {
-                                                          // Get.find<ChatController>().getUnreadMessageLength(groupChatId: (
-                                                          //     userDetails.id.hashCode + GetStorage().read(auth.currentUser!.uid.toString())
-                                                          //         .hashCode)
-                                                          //     .toString());
-                                                        },
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              );
-                                            } else {
-                                              return const Text(
-                                                  'No Message Here-------',
-                                                  textAlign: TextAlign.left);
-                                            }
-                                          },
+                                        Padding(
+                                          padding: EdgeInsets.only(top:getHeight(8),right: getWidth(8)),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              SizedBox(
+                                                width:getWidth(100),
+                                                child: Text(
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    '${snapshot.data!.docs[index]['lastMessage']}'),
+                                              ),
+                                              Text(
+                                                Get.find<HomeController>()
+                                                    .getLastMessageTime(
+                                                        context: context,
+                                                        time: snapshot
+                                                            .data!
+                                                            .docs[index][
+                                                                'lastMessageTime']
+                                                            .toString(),
+                                                        showYear: false),
+                                              )
+                                            ],
+                                          ),
                                         ),
-                                        // Row(
-                                        //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        //   children: const [
-                                        //     Text('Message'),
-                                        //     Text('Time'),
-                                        //   ],
-                                        // )
+                                        // StreamBuilder(
+                                        //   stream: Get.find<ChatController>()
+                                        //       .getLastMessage((auth.currentUser!
+                                        //                   .uid.hashCode +
+                                        //               snapshot
+                                        //                   .data!
+                                        //                   .docs[index]['id']
+                                        //                   .hashCode)
+                                        //           .toString()),
+                                        //   builder: (context, snapshot) {
+                                        //     if (snapshot.connectionState ==
+                                        //         ConnectionState.waiting) {
+                                        //       return const Center(
+                                        //         child:
+                                        //             CircularProgressIndicator(),
+                                        //       );
+                                        //     }
+                                        //     final data = snapshot.data!.docs;
+                                        //     final list = data
+                                        //             .map((e) =>
+                                        //                 MessageModel.fromJson(
+                                        //                     e))
+                                        //             .toList() ??
+                                        //         [];
+                                        //     //Get.log("List data is $list");
+                                        //     //Get.log("List data is ${list[0].receiverLName}");
+                                        //     if (list.isNotEmpty) {
+                                        //       message = list[0];
+                                        //       return Column(
+                                        //         crossAxisAlignment:
+                                        //             CrossAxisAlignment.start,
+                                        //         children: [
+                                        //           Row(
+                                        //             mainAxisAlignment:
+                                        //                 MainAxisAlignment
+                                        //                     .spaceBetween,
+                                        //             children: [
+                                        //               SizedBox(
+                                        //                 width: getWidth(100),
+                                        //                 child: Text(
+                                        //                   maxLines: 1,
+                                        //                   overflow: TextOverflow
+                                        //                       .ellipsis,
+                                        //                   message != null
+                                        //                       ? message!.type ==
+                                        //                               MessageType
+                                        //                                   .image
+                                        //                           ? 'Image'
+                                        //                           : message!.type ==
+                                        //                                   MessageType
+                                        //                                       .video
+                                        //                               ? 'Video'
+                                        //                               : message!.type ==
+                                        //                                       MessageType.audio
+                                        //                                   ? 'Audio File'
+                                        //                                   : message!.type == MessageType.location
+                                        //                                       ? 'Location '
+                                        //                                       : message?.type == MessageType.text
+                                        //                                           ? message!.messageContent
+                                        //                                           : ""
+                                        //                       : "No Message",
+                                        //                   style: const TextStyle(
+                                        //                       color: MyColors
+                                        //                           .black),
+                                        //                 ),
+                                        //               ),
+                                        //               GestureDetector(
+                                        //                 child: Padding(
+                                        //                   padding:
+                                        //                       const EdgeInsets
+                                        //                           .all(8.0),
+                                        //                   child: Text(
+                                        //                     Get.find<
+                                        //                             HomeController>()
+                                        //                         .getLastMessageTime(
+                                        //                             context:
+                                        //                                 context,
+                                        //                             time: message!
+                                        //                                 .timestamp,
+                                        //                             showYear:
+                                        //                                 false),
+                                        //                     style: const TextStyle(
+                                        //                         color: MyColors
+                                        //                             .black),
+                                        //                   ),
+                                        //                 ),
+                                        //                 onTap: () {
+                                        //                   // Get.find<ChatController>().getUnreadMessageLength(groupChatId: (
+                                        //                   //     userDetails.id.hashCode + GetStorage().read(auth.currentUser!.uid.toString())
+                                        //                   //         .hashCode)
+                                        //                   //     .toString());
+                                        //                 },
+                                        //               ),
+                                        //             ],
+                                        //           ),
+                                        //         ],
+                                        //       );
+                                        //     } else {
+                                        //       return const Text(
+                                        //           'No Message Here-------',
+                                        //           textAlign: TextAlign.left);
+                                        //     }
+                                        //   },
+                                        // ),
                                       ],
                                     ),
                                   )

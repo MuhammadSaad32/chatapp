@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chat_app/data/models/user_details_model/user_detail.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
@@ -22,6 +24,10 @@ class ChatController extends GetxController {
   //String rId = '';
   String groupID = '';
   String Status = '';
+  DocumentSnapshot? lastDocument;
+  Stream<QuerySnapshot>? querySnapshot;
+  List<Map<String,dynamic>> list =[];
+  bool moreData = true;
   List<QueryDocumentSnapshot> messagesList = [];
   TextEditingController chatFieldController = TextEditingController();
 
@@ -196,9 +202,7 @@ class ChatController extends GetxController {
     final QuerySnapshot collectionSnapshot = await collectionRef.limit(1).get();
     print("${collectionSnapshot.size}");
   }
-
   Stream<QuerySnapshot<Object?>?>? getAllMessages(String groupChatId) {
-    // isChatRoomIsAvailAble();
     return fireStore
         .collection('chatRoom')
         .doc(groupChatId)
@@ -206,7 +210,7 @@ class ChatController extends GetxController {
         .doc(auth.currentUser!.uid)
         .collection('message')
         .orderBy('timeStamp')
-        //.limit(limit)
+        //.limit(10)
         .snapshots();
 
     // return collectionSnapshot.docs.isNotEmpty;
