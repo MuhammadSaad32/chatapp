@@ -4,15 +4,22 @@ import 'package:chat_app/data/models/chatUsersModel/chat_user_model.dart';
 import 'package:chat_app/data/models/user_details_model/user_detail.dart';
 import 'package:chat_app/ui/screens/auth/login/login_screen.dart';
 import 'package:chat_app/ui/values/ui_size_config.dart';
+import 'package:chat_app/ui/widgets/dialogue_box.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../values/my_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../widgets/toast.dart';
 import '../allusers/all_users_screen.dart';
 import '../chat/chat_screen.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
+
+import '../video/video_play_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -23,7 +30,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final fireStore = FirebaseFirestore.instance;
-
+  double? lat;
+  double? log;
+  List<String> myLocation = [];
   final auth = FirebaseAuth.instance;
   MessageModel? message;
 
@@ -214,7 +223,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             },
             child: const Icon(Icons.menu_rounded)),
         actions: [
-          GestureDetector(onTap: () {}, child: const Icon(Icons.search)),
+          GestureDetector(
+              onTap: () {
+                //Get.to(const ContactList());
+              },
+              child: const Icon(Icons.search)),
           SizedBox(width: getWidth(10)),
           GestureDetector(
               onTap: () {
@@ -235,7 +248,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
       body: WillPopScope(
-        onWillPop: showExitPopup,
+        onWillPop: () {
+          return DialogueBox().showExitPopup(context);
+        },
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: StreamBuilder(
@@ -270,7 +285,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         // return homeBuild(context, snapshot.data?.docs[index]);
                         return GestureDetector(
                           onTap: () {
-                            Get.log("${snapshot.data!.docs[index].data()}");
+                            //Get.find<ChatController>().updateMessageReadStatus(
+                              //   (auth.currentUser!.uid.hashCode +
+                                // snapshot.data!.docs[index]['id'].hashCode).toString(),
+                                 //snapshot.data!.docs[index].data());
+                            Get.log(
+                                "12321  ${snapshot.data!.docs[index].data()['id']}");
                             Get.to(ChatScreen(
                               groupId: (auth.currentUser!.uid.hashCode +
                                       snapshot.data!.docs[index]['id'].hashCode)
@@ -359,15 +379,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                                               ? message!.type ==
                                                                       MessageType
                                                                           .image
-                                                                  ? 'image'
+                                                                  ? 'Image'
                                                                   : message!.type ==
                                                                           MessageType
-                                                                              .audio
-                                                                      ? 'audio'
-                                                                      : message?.type ==
-                                                                              MessageType.text
-                                                                          ? message!.messageContent
-                                                                          : ""
+                                                                              .video
+                                                                      ? 'Video'
+                                                                      : message!.type ==
+                                                                              MessageType.audio
+                                                                          ? 'Audio File'
+                                                                          : message!.type == MessageType.location
+                                                                              ? 'Location '
+                                                                              : message?.type == MessageType.text
+                                                                                  ? message!.messageContent
+                                                                                  : ""
                                                               : "No Message",
                                                           style: const TextStyle(
                                                               color: MyColors
@@ -406,10 +430,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                                 ],
                                               );
                                             } else {
-                                              return const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
-                                              );
+                                              return const Text(
+                                                  'No Message Here-------',
+                                                  textAlign: TextAlign.left);
                                             }
                                           },
                                         ),
@@ -441,226 +464,200 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget homeBuild(BuildContext context, DocumentSnapshot? document) {
-    if (document != null) {
-      UserDetails userDetails = UserDetails.fromDocument(document);
-      return Container(
-        constraints: BoxConstraints(minHeight: getHeight(80)),
-        decoration: const BoxDecoration(color: MyColors.transparent),
-        margin: const EdgeInsets.only(bottom: 10, left: 5, right: 5),
-        child: TextButton(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Material(
-                  borderRadius: const BorderRadius.all(Radius.circular(25)),
-                  clipBehavior: Clip.hardEdge,
-                  child: userDetails.photoUrl.isNotEmpty
-                      ? Image.network(
-                          userDetails.photoUrl,
-                          fit: BoxFit.cover,
-                          width: 50,
-                          height: 50,
-                          loadingBuilder: (BuildContext context, Widget child,
-                              ImageChunkEvent? loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return SizedBox(
-                              width: 50,
-                              height: 50,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: MyColors.primaryColor,
-                                  value: loadingProgress.expectedTotalBytes !=
-                                          null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, object, stackTrace) {
-                            return const Icon(
-                              Icons.account_circle,
-                              size: 50,
-                              color: MyColors.grey,
-                            );
-                          },
-                        )
-                      : const Icon(
-                          Icons.account_circle,
-                          size: 50,
-                          color: MyColors.grey,
-                        ),
-                ),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 20),
-                    child: StreamBuilder(
-                      stream: Get.find<ChatController>().getLastMessage(
-                          (userDetails.id.hashCode +
-                                  GetStorage()
-                                      .read(auth.currentUser!.uid.toString())
-                                      .hashCode)
-                              .toString()),
-                      builder: (context, snapshot) {
-                        final data = snapshot.data!.docs;
-                        final list =
-                            data.map((e) => MessageModel.fromJson(e)).toList();
-                        //Get.log("List data is $list");
-                        //Get.log("List data is ${list[0].receiverLName}");
-                        if (list.isNotEmpty) {
-                          message = list[0];
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${message!.receiverFName} ${message!.receiverLName}',
-                                style: const TextStyle(
-                                    color: MyColors.primaryColor),
-                              ),
-                              SizedBox(
-                                height: getHeight(5),
-                              ),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  SizedBox(
-                                    width: getWidth(100),
-                                    child: Text(
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      message != null
-                                          ? message!.type == MessageType.image
-                                              ? 'image'
-                                              : message!.type ==
-                                                      MessageType.audio
-                                                  ? 'audio'
-                                                  : message?.type ==
-                                                          MessageType.text
-                                                      ? message!.messageContent
-                                                      : ""
-                                          : "No Message",
-                                      style: const TextStyle(
-                                          color: MyColors.black),
-                                    ),
-                                  ),
-                                  // Text(Get.find<ChatController>().getUnreadMessageLength((userDetails.id.hashCode + GetStorage().read(auth.currentUser!.uid.toString())
-                                  //     .hashCode)
-                                  //     .toString()),),
-                                  // SizedBox(width: getWidth(100),),
-                                  GestureDetector(
-                                    child: Text(
-                                      Get.find<HomeController>()
-                                          .getLastMessageTime(
-                                              context: context,
-                                              time: message!.timestamp,
-                                              showYear: false),
-                                      style: const TextStyle(
-                                          color: MyColors.black),
-                                    ),
-                                    onTap: () {
-                                      Get.find<ChatController>()
-                                          .getUnreadMessageLength(
-                                              groupChatId: (userDetails
-                                                          .id.hashCode +
-                                                      GetStorage()
-                                                          .read(auth
-                                                              .currentUser!.uid
-                                                              .toString())
-                                                          .hashCode)
-                                                  .toString());
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        } else {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                // message != null
-                //     ? Text(
-                //         HomeController.getLastMessageTime(
-                //             context: context,
-                //             time: message!.timestamp,
-                //             showYear: false),
-                //         style: const TextStyle(color: MyColors.black),
-                //       )
-                //     : Container(
-                //         height: getHeight(10),
-                //         width: getWidth(10),
-                //
-                //   decoration: const BoxDecoration(
-                //     shape: BoxShape.circle,
-                //     color: Colors.green,
-                //   ),
-                //       )
-              ],
-            ),
-            onPressed: () async {
-              await Get.find<HomeController>().getCurrentUserID();
-              String id = (userDetails.id.hashCode +
-                      Get.find<HomeController>().currentUserID.hashCode)
-                  .toString();
+  // Widget homeBuild(BuildContext context, DocumentSnapshot? document) {
+  //   if (document != null) {
+  //     UserDetails userDetails = UserDetails.fromDocument(document);
+  //     return Container(
+  //       constraints: BoxConstraints(minHeight: getHeight(80)),
+  //       decoration: const BoxDecoration(color: MyColors.transparent),
+  //       margin: const EdgeInsets.only(bottom: 10, left: 5, right: 5),
+  //       child: TextButton(
+  //           child: Row(
+  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //             children: <Widget>[
+  //               Material(
+  //                 borderRadius: const BorderRadius.all(Radius.circular(25)),
+  //                 clipBehavior: Clip.hardEdge,
+  //                 child: userDetails.photoUrl.isNotEmpty
+  //                     ? Image.network(
+  //                         userDetails.photoUrl,
+  //                         fit: BoxFit.cover,
+  //                         width: 50,
+  //                         height: 50,
+  //                         loadingBuilder: (BuildContext context, Widget child,
+  //                             ImageChunkEvent? loadingProgress) {
+  //                           if (loadingProgress == null) return child;
+  //                           return SizedBox(
+  //                             width: 50,
+  //                             height: 50,
+  //                             child: Center(
+  //                               child: CircularProgressIndicator(
+  //                                 color: MyColors.primaryColor,
+  //                                 value: loadingProgress.expectedTotalBytes !=
+  //                                         null
+  //                                     ? loadingProgress.cumulativeBytesLoaded /
+  //                                         loadingProgress.expectedTotalBytes!
+  //                                     : null,
+  //                               ),
+  //                             ),
+  //                           );
+  //                         },
+  //                         errorBuilder: (context, object, stackTrace) {
+  //                           return const Icon(
+  //                             Icons.account_circle,
+  //                             size: 50,
+  //                             color: MyColors.grey,
+  //                           );
+  //                         },
+  //                       )
+  //                     : const Icon(
+  //                         Icons.account_circle,
+  //                         size: 50,
+  //                         color: MyColors.grey,
+  //                       ),
+  //               ),
+  //               Expanded(
+  //                 child: Container(
+  //                   margin: const EdgeInsets.only(left: 20),
+  //                   child: StreamBuilder(
+  //                     stream: Get.find<ChatController>().getLastMessage(
+  //                         (userDetails.id.hashCode +
+  //                                 GetStorage()
+  //                                     .read(auth.currentUser!.uid.toString())
+  //                                     .hashCode)
+  //                             .toString()),
+  //                     builder: (context, snapshot) {
+  //                       final data = snapshot.data!.docs;
+  //                       final list =
+  //                           data.map((e) => MessageModel.fromJson(e)).toList();
+  //                       //Get.log("List data is $list");
+  //                       //Get.log("List data is ${list[0].receiverLName}");
+  //                       if (list.isNotEmpty) {
+  //                         message = list[0];
+  //                         return Column(
+  //                           crossAxisAlignment: CrossAxisAlignment.start,
+  //                           children: [
+  //                             Text(
+  //                               '${message!.receiverFName} ${message!.receiverLName}',
+  //                               style: const TextStyle(
+  //                                   color: MyColors.primaryColor),
+  //                             ),
+  //                             SizedBox(
+  //                               height: getHeight(5),
+  //                             ),
+  //                             Row(
+  //                               mainAxisAlignment:
+  //                                   MainAxisAlignment.spaceBetween,
+  //                               children: [
+  //                                 SizedBox(
+  //                                   width: getWidth(100),
+  //                                   child: Text(
+  //                                     maxLines: 1,
+  //                                     overflow: TextOverflow.ellipsis,
+  //                                     message != null
+  //                                         ? message!.type == MessageType.image
+  //                                             ? 'Image'
+  //                                             : message!.type ==
+  //                                                     MessageType.audio
+  //                                                 ? 'Audio File'
+  //                                                 : message!.type ==
+  //                                                         MessageType.location
+  //                                                     ? ' Location '
+  //                                                     : message?.type ==
+  //                                                             MessageType.text
+  //                                                         ? message!
+  //                                                             .messageContent
+  //                                                         : ""
+  //                                         : "No Message",
+  //                                     style: const TextStyle(
+  //                                         color: MyColors.black),
+  //                                   ),
+  //                                 ),
+  //                                 // Text(Get.find<ChatController>().getUnreadMessageLength((userDetails.id.hashCode + GetStorage().read(auth.currentUser!.uid.toString())
+  //                                 //     .hashCode)
+  //                                 //     .toString()),),
+  //                                 // SizedBox(width: getWidth(100),),
+  //                                 GestureDetector(
+  //                                   child: Text(
+  //                                     Get.find<HomeController>()
+  //                                         .getLastMessageTime(
+  //                                             context: context,
+  //                                             time: message!.timestamp,
+  //                                             showYear: false),
+  //                                     style: const TextStyle(
+  //                                         color: MyColors.black),
+  //                                   ),
+  //                                   onTap: () {
+  //                                     Get.find<ChatController>()
+  //                                         .getUnreadMessageLength(
+  //                                             groupChatId: (userDetails
+  //                                                         .id.hashCode +
+  //                                                     GetStorage()
+  //                                                         .read(auth
+  //                                                             .currentUser!.uid
+  //                                                             .toString())
+  //                                                         .hashCode)
+  //                                                 .toString());
+  //                                   },
+  //                                 ),
+  //                               ],
+  //                             ),
+  //                           ],
+  //                         );
+  //                       } else {
+  //                         return const Center(
+  //                           child: CircularProgressIndicator(),
+  //                         );
+  //                       }
+  //                     },
+  //                   ),
+  //                 ),
+  //               ),
+  //               // message != null
+  //               //     ? Text(
+  //               //         HomeController.getLastMessageTime(
+  //               //             context: context,
+  //               //             time: message!.timestamp,
+  //               //             showYear: false),
+  //               //         style: const TextStyle(color: MyColors.black),
+  //               //       )
+  //               //     : Container(
+  //               //         height: getHeight(10),
+  //               //         width: getWidth(10),
+  //               //
+  //               //   decoration: const BoxDecoration(
+  //               //     shape: BoxShape.circle,
+  //               //     color: Colors.green,
+  //               //   ),
+  //               //       )
+  //             ],
+  //           ),
+  //           onPressed: () async {
+  //             await Get.find<HomeController>().getCurrentUserID();
+  //             String id = (userDetails.id.hashCode +
+  //                     Get.find<HomeController>().currentUserID.hashCode)
+  //                 .toString();
+  //
+  //             // Get.to(
+  //             //     ChatScreen(
+  //             //     firstName: userDetails.firstName,
+  //             //     lastName: userDetails.lastName,
+  //             //     sendToUserID: userDetails.id,
+  //             //     groupId: id,
+  //             //     currentUserID:
+  //             //         Get.find<HomeController>().currentUserID.toString())
+  //             // );
+  //           }),
+  //     );
+  //   } else {
+  //     return const Center(
+  //         child: Text(
+  //       '1323434141',
+  //       style: TextStyle(color: MyColors.black),
+  //     ));
+  //   }
+  // }
 
-              // Get.to(
-              //     ChatScreen(
-              //     firstName: userDetails.firstName,
-              //     lastName: userDetails.lastName,
-              //     sendToUserID: userDetails.id,
-              //     groupId: id,
-              //     currentUserID:
-              //         Get.find<HomeController>().currentUserID.toString())
-              // );
-            }),
-      );
-    } else {
-      return const Center(
-          child: Text(
-        '1323434141',
-        style: TextStyle(color: MyColors.black),
-      ));
-    }
-  }
-
-  Future<bool> showExitPopup() async {
-    return await showDialog(
-      //show confirm dialogue
-      //the return value will be from "Yes" or "No" options
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Exit App'),
-        content: const Text('Do you want to exit an App?'),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: MyColors.primaryColor,
-            ),
-            onPressed: () => Navigator.of(context).pop(false),
-            //return false when click on "NO"
-            child: const Text('No'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: MyColors.primaryColor,
-            ),
-            onPressed: () => SystemNavigator.pop(),
-            //return true when click on "Yes"
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    ) ??
-        false; //if showDialouge had returned null, then return false
-  }
   // Widget buildLast(BuildContext context, DocumentSnapshot? document){
   // MessageModel messageModel = MessageModel.fromJson(document!);{
   //

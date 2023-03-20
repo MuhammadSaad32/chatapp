@@ -1,4 +1,5 @@
 import 'package:chat_app/controllers/authController/auth_controller.dart';
+import 'package:chat_app/ui/screens/allusers/paginated_data_screen.dart';
 import 'package:chat_app/ui/screens/auth/login/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
