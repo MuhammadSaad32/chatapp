@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:url_launcher/url_launcher.dart';
 import 'package:chat_app/data/models/user_details_model/user_detail.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
@@ -212,7 +212,6 @@ class ChatController extends GetxController {
         .orderBy('timeStamp')
         //.limit(10)
         .snapshots();
-
     // return collectionSnapshot.docs.isNotEmpty;
     //  fireStore.collection("chatRoom").limit(1).get().then((value) {
     //    print("value   ${value.size}");
@@ -353,6 +352,14 @@ class ChatController extends GetxController {
       });
     }
   }
+  launchURL({required String url}) async {
+    //const url = 'https://flutter.dev/exapmle.pdf';
+    if (await canLaunch(url)) {
+       await launch(url);
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
 
   // Stream getMessages({required String id, String? senderEmail}) async* {
   //   //Get.log("Current User Id is ${auth.currentUser!.uid}");
@@ -415,4 +422,5 @@ class MessageType {
   static const audio = 2;
   static const location = 3;
   static const video = 4;
+  static const document = 5;
 }

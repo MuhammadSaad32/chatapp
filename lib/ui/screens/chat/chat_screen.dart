@@ -2,6 +2,7 @@ import 'package:chat_app/controllers/homeController/home_controller.dart';
 import 'package:chat_app/ui/screens/video/video_play_screen.dart';
 import 'package:chat_app/ui/screens/home/home_screen.dart';
 import 'package:chat_app/ui/widgets/dialogue_box.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chat_app/controllers/chatController/chat_controller.dart';
 import 'dart:io';
@@ -21,6 +22,7 @@ import '../../../data/getServices/CheckConnectionService.dart';
 import '../../values/my_colors.dart';
 import '../../widgets/date_format.dart';
 import '../../widgets/toast.dart';
+// import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -30,6 +32,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../contacts/contact_list_screen.dart';
+import '../pdfView/pdf_view_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   dynamic userMap;
@@ -45,13 +48,16 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  // final GlobalKey<SfPdfViewerState> _pdfViewerKey = GlobalKey();
   File? imageFile;
   File? videoFile;
   double? lat;
   MessageModel? message;
   double? log;
   List<String> myLocation = [];
+  String finalPath='';
   File? audioFile;
+  File? documentFile;
   FirebaseAuth auth = FirebaseAuth.instance;
   AudioController audioController = Get.put(AudioController());
   bool loading = false;
@@ -61,7 +67,9 @@ class _ChatScreenState extends State<ChatScreen> {
   String recordFilePath = "";
   String imageUrl = "";
   String videoUrl = "";
+  String documentFileUrl = "";
   Position? currentPosition;
+  String basename='';
   final ScrollController _scrollController = ScrollController();
   VideoPlayerController? _controller;
   Future<void>? _initializeVideoPlayerFuture;
@@ -90,13 +98,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       throw 'Could not launch $url';
     }
-    //}
-// var uri = Uri.parse("google.navigation:q=$lat,$lng");
-// if (await canLaunch(uri.toString())) {
-// await launch(uri.toString());
-// } else {
-// throw 'Could not launch ${uri.toString()}';
-// }
   }
 
   void sendButton({
@@ -314,8 +315,252 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // Image Files Start Here All Code Related to sending images
+  /// Getting Documents from Gallery
 
+  Future getFileGallery() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+    if (result != null) {
+      documentFile= File(result.files.single.path!);
+      print('file is $documentFile');
+      String temp = documentFile.toString();
+      //basename(documentFile)=basename(documentFile!.path);
+      List<String> paths = temp.split('/');
+      finalPath= paths[paths.length-1];
+      finalPath = finalPath.replaceAll('\'', '');
+      print(finalPath);
+      uploadFile();
+    } else {
+      // User canceled the picker
+    }
+  }
+
+  /// Upoading File to FireStorage
+  uploadFile(){
+    connectionService.checkConnection().then((internet) async {
+      if (!internet) {
+        CustomToast.failToast(message: "Not Connected to internet");
+      } else {
+        // var upload;
+        // String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+        // loading = true;
+        // sendButton(mesContent: '', type: MessageType.image);
+        // final ref = FirebaseStorage.instance
+        //     .ref()
+        //     .child('images')
+        //     .child('$fileName.jgp');
+        //
+        // await ref.putFile(imageFile!).then((p0) {
+        //   setState(() {
+        //     upload = p0;
+        //     loading = false;
+        //   });
+        // });
+        // //imageUrl==""?const CircularProgressIndicator():SizedBox();
+        // imageUrl = await upload.ref.getDownloadURL();
+        // print(imageUrl);
+        String fileName = const Uuid().v1();
+        int status = 1;
+        await FirebaseFirestore.instance
+            .collection('chatRoom')
+            .doc(widget.groupId)
+            .collection('ChatUsers')
+            .doc(auth.currentUser!.uid)
+            .collection('message')
+            .doc(fileName)
+            .set({
+          'message': '',
+          'sender': auth.currentUser!.uid,
+          'receiver': widget.userMap['id'],
+          'receiverFName': widget.userMap['firstName'],
+          'receiverLName': widget.userMap['lastName'],
+          'timeStamp': DateTime.now().millisecondsSinceEpoch.toString(),
+          'messageId': fileName,
+          'lastMessage': 'Document',
+          'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+          'messageType': MessageType.document,
+          'readStatus': false,
+          //'fileName':finalPath,
+          //'userStatus': userStatus,
+          'duration': ''
+        });
+        await FirebaseFirestore.instance
+            .collection('chatRoom')
+            .doc(widget.groupId)
+            .collection('ChatUsers')
+            .doc(widget.userMap['id'])
+            .collection('message')
+            .doc(fileName)
+            .set({
+          'message': '',
+          'sender': auth.currentUser!.uid,
+          'receiver': widget.userMap['id'],
+          'receiverFName': widget.userMap['firstName'],
+          'receiverLName': widget.userMap['lastName'],
+          'timeStamp': DateTime.now().millisecondsSinceEpoch.toString(),
+          'messageId': fileName,
+          'messageType': MessageType.document,
+          'readStatus': false,
+          //'fileName':finalPath,
+          //'userStatus': userStatus,
+          'duration': ''
+        });
+
+        var ref = FirebaseStorage.instance
+            .ref()
+            .child('documents')
+            .child('$fileName');
+
+        var uploadTask = await ref.putFile(documentFile!).catchError((error) async {
+          await FirebaseFirestore.instance
+              .collection('chatRoom')
+              .doc(widget.groupId)
+              .collection('ChatUsers')
+              .doc(auth.currentUser!.uid)
+              .collection('message')
+              .doc(fileName)
+              .delete();
+
+          status = 0;
+        });
+        if (status == 1) {
+          documentFileUrl = await uploadTask.ref.getDownloadURL();
+          await FirebaseFirestore.instance
+              .collection('chatRoom')
+              .doc(widget.groupId)
+              .collection('ChatUsers')
+              .doc(auth.currentUser!.uid)
+              .collection('message')
+              .doc(fileName)
+              .update({'message': documentFileUrl});
+          await FirebaseFirestore.instance
+              .collection('chatRoom')
+              .doc(widget.groupId)
+              .collection('ChatUsers')
+              .doc(widget.userMap['id'])
+              .collection('message')
+              .doc(fileName)
+              .update({'message': documentFileUrl});
+        }
+
+        // sendButton(mesContent: imageUrl, type: MessageType.image,);
+
+        await FirebaseFirestore.instance
+            .collection("Users")
+            .doc(GetStorage().read(auth.currentUser!.uid.toString()))
+            .collection("myUsers")
+            .get()
+            .then((value) {
+          if (value.docs.contains(widget.userMap['id'])) {
+            print("user is  available");
+          } else {
+            FirebaseFirestore.instance
+                .collection('Users')
+                .doc(GetStorage().read(auth.currentUser!.uid.toString()))
+                .collection("myUsers")
+                .doc(widget.userMap['id'])
+                .set({
+              'email': widget.userMap['email'],
+              'id': widget.userMap['id'],
+              'status': "offline",
+              //'fileName':finalPath,
+              'lastMessage': 'Document',
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'password': "1234445",
+              'firstName': widget.userMap['firstName'],
+              'lastName': widget.userMap['lastName'],
+              // 'lastName': userDetails.lastName.toString(),
+            });
+          }
+        });
+        await FirebaseFirestore.instance
+            .collection("Users")
+            .doc(widget.userMap['id'])
+            .collection("myUsers")
+            .get()
+            .then((value) {
+          if (value.docs
+              .contains(GetStorage().read(auth.currentUser!.uid.toString()))) {
+            print("user is  available");
+          } else {
+            //for (var element in value.docs) {
+            FirebaseFirestore.instance
+                .collection('Users')
+                .doc(widget.userMap['id'])
+                .collection("myUsers")
+                .doc(GetStorage().read(auth.currentUser!.uid.toString()))
+                .set({
+              'email': auth.currentUser!.email,
+              'id': auth.currentUser!.uid,
+              'status': "offline",
+              'lastMessage': 'Document',
+              //'fileName':finalPath,
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'password': "1234445",
+              'firstName': GetStorage()
+                  .read('FirstName${auth.currentUser!.uid.toString()}'),
+              'lastName': GetStorage()
+                  .read('LastName${auth.currentUser!.uid.toString()}'),
+              // 'lastName': userDetails.lastName.toString(),
+            });
+            // }
+          }
+        });
+        // await FirebaseFirestore.instance
+        //     .collection("Users")
+        //     .doc(Get.find<HomeController>().currentUserID.toString())
+        //     .collection("myUsers")
+        //     .get()
+        //     .then((value) {
+        //   if (value.docs.contains(widget.userMap['receiverID'])) {
+        //     print("user is  available");
+        //   } else {
+        //     Get.log("First Name is ${widget.userMap['firstName']}");
+        //     Get.log("Foiirst Name is ${widget.userMap['lastName']}");
+        //     FirebaseFirestore.instance
+        //         .collection('Users')
+        //         .doc(Get.find<HomeController>().currentUserID.toString())
+        //         .collection("myUsers").doc(widget.userMap['receiverID'])
+        //         .set({
+        //       'groupId': widget.userMap['groupId'],
+        //       'senderId': Get.find<HomeController>().currentUserID.toString(),
+        //       'receiverId': widget.userMap['receiverID'],
+        //       'firstName': widget.userMap['firstName'],
+        //       'lastName': widget.userMap['lastName'],
+        //     });
+        //   }
+        // });
+        // await FirebaseFirestore.instance
+        //     .collection("Users")
+        //     .doc(Get.find<HomeController>().currentUserID.toString())
+        //     .collection("myUsers")
+        //     .get().then((value) {
+        //   if (value.docs.contains(Get.find<HomeController>().currentUserID.toString())) {
+        //     print("user is  available");
+        //   }
+        //   else{
+        //     //for (var element in value.docs) {
+        //     FirebaseFirestore.instance
+        //         .collection('Users')
+        //         .doc(widget.userMap['receiverID'])
+        //         .collection("myUsers").doc(Get.find<HomeController>().currentUserID.toString())
+        //         .set({
+        //       'groupId': widget.userMap['groupId'],
+        //       'senderId': widget.userMap['receiverID'],
+        //       'receiverId': Get.find<HomeController>().currentUserID.toString(),
+        //       //'firstName':userDetails.firstName.toString(),
+        //       'firstName': Get.find<HomeController>().loggedInUserFirstName.toString(),
+        //       'lastName':Get.find<HomeController>().loggedInUserLastName.toString(),
+        //       // 'lastName': userDetails.lastName.toString(),
+        //     });
+        //     // }
+        //   }
+        // });
+      }
+    });
+  }
+
+  /// Image Files Start Here All Code Related to sending images
+  /// Upload Image to FireStore
   Future uploadImage() async {
     connectionService.checkConnection().then((internet) async {
       if (!internet) {
@@ -378,7 +623,6 @@ class _ChatScreenState extends State<ChatScreen> {
           'receiverLName': widget.userMap['lastName'],
           'timeStamp': DateTime.now().millisecondsSinceEpoch.toString(),
           'messageId': fileName,
-
           'messageType': MessageType.image,
           'readStatus': false,
           //'userStatus': userStatus,
@@ -538,6 +782,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Upload video to FireStore
   Future uploadVideo() async {
     connectionService.checkConnection().then((internet) async {
       if (!internet) {
@@ -760,6 +1005,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Getting Video from Gallery
   Future getVideoGallery() async {
     ImagePicker imagePicker = ImagePicker();
     await imagePicker.getVideo(source: ImageSource.gallery).then((xFile) async {
@@ -771,6 +1017,19 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Getting Video From Camera
+  Future getVideoCamera() async {
+    ImagePicker imagePicker = ImagePicker();
+    await imagePicker.getVideo(source: ImageSource.camera).then((xFile) async {
+      if (xFile != null) {
+        videoFile = File(xFile.path);
+        print("Video File is $videoFile");
+        uploadVideo();
+      }
+    });
+  }
+
+  /// Getting Image from Gallery
   Future getImageGallery() async {
     ImagePicker imagePicker = ImagePicker();
     //PickedFile? pickedFile;
@@ -790,6 +1049,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // }
   }
 
+  /// Getting Image from Camera
   Future getImageCamera() async {
     ImagePicker imagePicker = ImagePicker();
     //PickedFile? pickedFile;
@@ -813,6 +1073,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Audio Files Start Here All Code Related to sending Audio ---------------------------------------------------------
 
+  /// Function to Start Recording Voice Message
   void startRecord() async {
     bool hasPermission = await checkPermission();
     if (hasPermission) {
@@ -824,6 +1085,7 @@ class _ChatScreenState extends State<ChatScreen> {
     //setState(() {});
   }
 
+  /// To Stop  Record
   void stopRecord() async {
     bool stop = RecordMp3.instance.stop();
     audioController.end.value = DateTime.now();
@@ -851,6 +1113,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return "$sdPath/test_${i++}.mp3";
   }
 
+  /// Uploading Audio to fireStore
   uploadAudio() async {
     UploadTask uploadTask = Get.find<ChatController>().uploadAudio(
         File(recordFilePath),
@@ -1064,6 +1327,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // Audio Section Ended Here --------------------------------------------------------
+
+  /// Widget textField
   Widget chatBottomField() {
     return Container(
       width: double.infinity,
@@ -1112,16 +1377,21 @@ class _ChatScreenState extends State<ChatScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Container(
-                                              height: getHeight(60),
-                                              width: getWidth(70),
-                                              decoration: const BoxDecoration(
-                                                  color: Colors.purple,
-                                                  shape: BoxShape.circle),
-                                              child: Icon(
-                                                Icons.description,
-                                                size: getHeight(30),
-                                                color: MyColors.white,
+                                            GestureDetector(
+                                              onTap: () {
+                                               getFileGallery();
+                                              },
+                                              child: Container(
+                                                height: getHeight(60),
+                                                width: getWidth(70),
+                                                decoration: const BoxDecoration(
+                                                    color: Colors.purple,
+                                                    shape: BoxShape.circle),
+                                                child: Icon(
+                                                  Icons.description,
+                                                  size: getHeight(30),
+                                                  color: MyColors.white,
+                                                ),
                                               ),
                                             ),
                                             SizedBox(
@@ -1170,40 +1440,63 @@ class _ChatScreenState extends State<ChatScreen> {
                                           children: [
                                             GestureDetector(
                                               onTap: () {
+                                                FocusManager
+                                                    .instance.primaryFocus!
+                                                    .unfocus();
                                                 Navigator.of(context).pop();
-                                                showModalBottomSheet(context: context, builder: (BuildContext context) {
-                                                  return SafeArea(
-                                                    child: Container(
+                                                showModalBottomSheet(
+                                                  context: context,
+                                                  builder:
+                                                      (BuildContext context) {
+                                                    return SafeArea(
                                                       child: Wrap(
                                                         children: <Widget>[
                                                           ListTile(
-                                                              leading: Icon(Icons.photo_library),
-                                                              title: Text('Gallery'),
+                                                              leading: const Icon(
+                                                                  Icons
+                                                                      .photo_library),
+                                                              title: const Text(
+                                                                  'Image'),
                                                               onTap: () {
-                                                                Navigator.of(context).pop();
+                                                                getImageGallery();
+                                                                Navigator.of(
+                                                                        context)
+                                                                    .pop();
                                                               }),
                                                           ListTile(
-                                                            leading: Icon(Icons.photo_camera),
-                                                            title: Text('Camera'),
+                                                            leading: const Icon(
+                                                                Icons
+                                                                    .smart_display),
+                                                            title: const Text(
+                                                                'Video'),
                                                             onTap: () {
-                                                              Navigator.of(context).pop();
+                                                              getVideoGallery();
+                                                              Navigator.of(
+                                                                      context)
+                                                                  .pop();
                                                             },
                                                           ),
                                                         ],
                                                       ),
-                                                    ),
-                                                  );
-                                                },);
-                                                // showDialog(context: context, builder: (context) {
-                                                //   return Row(children: [
-                                                //     Text('Image'),
-                                                //     Text('Video'),
-                                                //   ],);
-                                                // },);
-                                                //loading
-                                                  //  ? const CircularProgressIndicator()
-                                                    //: getImageGallery();
-                                                Get.back();
+                                                    );
+                                                  },
+                                                );
+                                                // showModalBottomSheet(
+                                                //     shape: RoundedRectangleBorder(
+                                                //         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0))),
+                                                //     backgroundColor: Colors.white,
+                                                //     context: context,
+                                                //     isScrollControlled: true,
+                                                //     builder: (context) {
+                                                //       return Container(
+                                                //         height: getHeight(130),
+                                                //         color: Colors.red,
+                                                //         child: Padding(
+                                                //           padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 15),
+                                                //
+                                                //         ),
+                                                //       );
+                                                //     });
                                               },
                                               child: Container(
                                                 height: getHeight(60),
@@ -1749,6 +2042,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// MessageList
   Widget buildListMessage() {
     return Flexible(
       child: widget.groupId.isNotEmpty
@@ -1890,6 +2184,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// UI of Messages
   Widget buildItem(int index, DocumentSnapshot? document) {
     MessageModel messageModel = MessageModel.fromJson(document!);
     //Get.log("current id from model is ${messageModel.currentID}  $index");
@@ -2241,159 +2536,125 @@ class _ChatScreenState extends State<ChatScreen> {
                                           .doc(widget.userMap['id'])
                                           .snapshots(),
                                       builder: (context, snapshot1) {
-                                        return StreamBuilder(
-                                          stream: FirebaseFirestore.instance
-                                              .collection('chatRoom')
-                                              .doc(widget.groupId)
-                                              .collection('ChatUsers')
-                                              .doc(auth.currentUser!.uid)
-                                              .collection('message')
-                                              .snapshots(),
-                                          builder: (context, snapshot2) {
-                                            if (snapshot1.connectionState ==
-                                                    ConnectionState.waiting ||
-                                                snapshot2.connectionState ==
-                                                    ConnectionState.waiting) {
-                                              return const Center(
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  color: MyColors.primaryColor,
-                                                ),
-                                              );
+                                        if (snapshot1.connectionState ==
+                                            ConnectionState.waiting) {
+                                          return const Center(
+                                            child: CircularProgressIndicator(
+                                              color: MyColors.primaryColor,
+                                            ),
+                                          );
+                                        } else {
+                                          if (snapshot1.connectionState ==
+                                                  ConnectionState.active ||
+                                              snapshot1.connectionState ==
+                                                  ConnectionState.done) {
+                                            if (snapshot1.hasError) {
+                                              return Text(
+                                                  snapshot1.error.toString());
                                             } else {
-                                              if (snapshot1.connectionState ==
-                                                      ConnectionState.active ||
-                                                  snapshot1.connectionState ==
-                                                      ConnectionState.done ||
-                                                  snapshot2.connectionState ==
-                                                      ConnectionState.active ||
-                                                  snapshot2.connectionState ==
-                                                      ConnectionState.done) {
-                                                if (snapshot1.hasError ||
-                                                    snapshot2.hasError) {
-                                                  return Text(snapshot1.error
-                                                      .toString());
-                                                } else {
-                                                  //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                                  //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                                  for (var element
-                                                      in snapshot2.data!.docs) {
-                                                    return snapshot1.data![
-                                                                    'status'] ==
-                                                                'Online' &&
-                                                            element['readStatus'] ==
-                                                                false
-                                                        ? Icon(Icons.done_all,
-                                                            color:
-                                                                MyColors.black,
-                                                            size: getHeight(15))
-                                                        : element['readStatus'] ==
-                                                                true
-                                                            ? Icon(
-                                                                Icons.done_all,
-                                                                color: MyColors
-                                                                    .blue10,
-                                                                size: getHeight(
-                                                                    15))
-                                                            : Icon(Icons.check,
-                                                                size: getHeight(
-                                                                    15));
-                                                  }
-                                                  // return snapshot1.data!['status'] ==
-                                                  // 'Online' &&
-                                                  //  snapshot2.data![
-                                                  //  'readStatus'] ==
-                                                  //     false
-                                                  // ? Icon(Icons.done_all,
-                                                  // color: MyColors.black,
-                                                  // size: getHeight(15))
-                                                  // : snapshot2.data!['readStatus'] ==
-                                                  //  true
-                                                  // ? Icon(Icons.done_all,
-                                                  // color: MyColors.blue10,
-                                                  //  size: getHeight(15))
-                                                  // : Icon(Icons.check,
-                                                  // size: getHeight(15));
-                                                }
-                                              }
+                                              return snapshot1.data![
+                                                              'status'] ==
+                                                          'Online' &&
+                                                      messageModel.readStatus ==
+                                                          false
+                                                  ? Icon(Icons.done_all,
+                                                      color: MyColors.black,
+                                                      size: getHeight(15))
+                                                  : messageModel.readStatus ==
+                                                          true
+                                                      ? Icon(
+                                                          Icons.done_all,
+                                                          color:
+                                                              MyColors.blue10,
+                                                          size: getHeight(15))
+                                                      : Icon(Icons.check,
+                                                          size: getHeight(15));
                                             }
-                                            return const SizedBox();
-
-                                            // do some stuff with both streams here
-                                          },
+                                          }
+                                        }
+                                        return Center(
+                                          child: CircularProgressIndicator(),
                                         );
+                                        // return StreamBuilder(
+                                        //   stream: FirebaseFirestore.instance
+                                        //       .collection('chatRoom')
+                                        //       .doc(widget.groupId)
+                                        //       .collection('ChatUsers')
+                                        //       .doc(auth.currentUser!.uid)
+                                        //       .collection('message')
+                                        //       .snapshots(),
+                                        //   builder: (context, snapshot2) {
+                                        //     if (snapshot1.connectionState ==
+                                        //             ConnectionState.waiting ||
+                                        //         snapshot2.connectionState ==
+                                        //             ConnectionState.waiting) {
+                                        //       return const Center(
+                                        //         child: CircularProgressIndicator(
+                                        //           color: MyColors.primaryColor,
+                                        //         ),
+                                        //       );
+                                        //     } else {
+                                        //       if (snapshot1.connectionState ==
+                                        //               ConnectionState.active ||
+                                        //           snapshot1.connectionState ==
+                                        //               ConnectionState.done ||
+                                        //           snapshot2.connectionState ==
+                                        //               ConnectionState.active ||
+                                        //           snapshot2.connectionState ==
+                                        //               ConnectionState.done) {
+                                        //         if (snapshot1.hasError ||
+                                        //             snapshot2.hasError) {
+                                        //           return Text(
+                                        //               snapshot1.error.toString());
+                                        //         } else {
+                                        //           //Get.log("Else Called  ${snapshot1.data!['status']}");
+                                        //           //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
+                                        //           for (var element
+                                        //               in snapshot2.data!.docs) {
+                                        //             return snapshot1.data![
+                                        //                             'status'] ==
+                                        //                         'Online' &&
+                                        //                     element['readStatus'] ==
+                                        //                         false
+                                        //                 ? Icon(Icons.done_all,
+                                        //                     color: MyColors.black,
+                                        //                     size: getHeight(15))
+                                        //                 : element['readStatus'] ==
+                                        //                         true
+                                        //                     ? Icon(
+                                        //                         Icons.done_all,
+                                        //                         color:
+                                        //                             MyColors.blue10,
+                                        //                         size: getHeight(15))
+                                        //                     : Icon(Icons.check,
+                                        //                         size:
+                                        //                             getHeight(15));
+                                        //           }
+                                        //           // return snapshot1.data!['status'] ==
+                                        //           // 'Online' &&
+                                        //           //  snapshot2.data![
+                                        //           //  'readStatus'] ==
+                                        //           //     false
+                                        //           // ? Icon(Icons.done_all,
+                                        //           // color: MyColors.black,
+                                        //           // size: getHeight(15))
+                                        //           // : snapshot2.data!['readStatus'] ==
+                                        //           //  true
+                                        //           // ? Icon(Icons.done_all,
+                                        //           // color: MyColors.blue10,
+                                        //           //  size: getHeight(15))
+                                        //           // : Icon(Icons.check,
+                                        //           // size: getHeight(15));
+                                        //         }
+                                        //       }
+                                        //     }
+                                        //     return const SizedBox();
+                                        //
+                                        //     // do some stuff with both streams here
+                                        //   },
+                                        // );
                                       },
                                     ),
-
-                                    // StreamBuilder(
-                                    //   stream: FirebaseFirestore.instance
-                                    //       .collection('Users')
-                                    //       .doc(widget.userMap['id'])
-                                    //       .snapshots(),
-                                    //   builder: (context, snapshot1) {
-                                    //     return StreamBuilder(
-                                    //       stream: FirebaseFirestore.instance
-                                    //           .collection('chatRoom')
-                                    //           .doc(widget.groupId)
-                                    //           .collection('ChatUsers')
-                                    //           .doc(auth.currentUser!.uid)
-                                    //           .collection('message')
-                                    //           .doc(messageModel.messageId)
-                                    //           .snapshots(),
-                                    //       builder: (context, snapshot2) {
-                                    //         if (snapshot1.connectionState ==
-                                    //                 ConnectionState.waiting ||
-                                    //             snapshot2.connectionState ==
-                                    //                 ConnectionState.waiting) {
-                                    //           return const Center(
-                                    //             child: CircularProgressIndicator(
-                                    //               color: MyColors.primaryColor,
-                                    //             ),
-                                    //           );
-                                    //         } else {
-                                    //           if (snapshot1.connectionState ==
-                                    //                   ConnectionState.active ||
-                                    //               snapshot1.connectionState ==
-                                    //                   ConnectionState.done ||
-                                    //               snapshot2.connectionState ==
-                                    //                   ConnectionState.active ||
-                                    //               snapshot2.connectionState ==
-                                    //                   ConnectionState.done) {
-                                    //             if (snapshot1.hasError ||
-                                    //                 snapshot2.hasError) {
-                                    //               return Text(
-                                    //                   snapshot1.error.toString());
-                                    //             } else {
-                                    //               return snapshot1.data![
-                                    //                               'status'] ==
-                                    //                           'Online' &&
-                                    //                       snapshot2.data![
-                                    //                               'readStatus'] ==
-                                    //                           false
-                                    //                   ? Icon(Icons.done_all,
-                                    //                       color: MyColors.black,
-                                    //                       size: getHeight(15))
-                                    //                   : snapshot2.data![
-                                    //                               'readStatus'] ==
-                                    //                           true
-                                    //                       ? Icon(
-                                    //                           Icons.done_all,
-                                    //                           color:
-                                    //                               MyColors.blue10,
-                                    //                           size: getHeight(15))
-                                    //                       : Icon(Icons.check,
-                                    //                           size:
-                                    //                               getHeight(15));
-                                    //             }
-                                    //           }
-                                    //         }
-                                    //         return const SizedBox();
-                                    //
-                                    //         // do some stuff with both streams here
-                                    //       },
-                                    //     );
-                                    //   },
-                                    // ),
                                   ],
                                 ),
                               ),
@@ -2497,176 +2758,131 @@ class _ChatScreenState extends State<ChatScreen> {
                                               .doc(widget.userMap['id'])
                                               .snapshots(),
                                           builder: (context, snapshot1) {
-                                            return StreamBuilder(
-                                              stream: FirebaseFirestore.instance
-                                                  .collection('chatRoom')
-                                                  .doc(widget.groupId)
-                                                  .collection('ChatUsers')
-                                                  .doc(auth.currentUser!.uid)
-                                                  .collection('message')
-                                                  .snapshots(),
-                                              builder: (context, snapshot2) {
-                                                if (snapshot1.connectionState ==
-                                                        ConnectionState
-                                                            .waiting ||
-                                                    snapshot2.connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      color:
-                                                          MyColors.primaryColor,
-                                                    ),
-                                                  );
+                                            if (snapshot1.connectionState ==
+                                                ConnectionState.waiting) {
+                                              return const Center(
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  color: MyColors.primaryColor,
+                                                ),
+                                              );
+                                            } else {
+                                              if (snapshot1.connectionState ==
+                                                      ConnectionState.active ||
+                                                  snapshot1.connectionState ==
+                                                      ConnectionState.done) {
+                                                if (snapshot1.hasError) {
+                                                  return Text(snapshot1.error
+                                                      .toString());
                                                 } else {
-                                                  if (snapshot1.connectionState == ConnectionState.active ||
-                                                      snapshot1
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .done ||
-                                                      snapshot2
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .active ||
-                                                      snapshot2
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .done) {
-                                                    if (snapshot1.hasError ||
-                                                        snapshot2.hasError) {
-                                                      return Text(snapshot1
-                                                          .error
-                                                          .toString());
-                                                    } else {
-                                                      //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                                      //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                                      for (var element
-                                                          in snapshot2
-                                                              .data!.docs) {
-                                                        return snapshot1.data![
-                                                                        'status'] ==
-                                                                    'Online' &&
-                                                                element['readStatus'] ==
-                                                                    false
-                                                            ? Icon(
-                                                                Icons.done_all,
-                                                                color: MyColors
-                                                                    .black,
-                                                                size:
-                                                                    getHeight(
-                                                                        15))
-                                                            : element['readStatus'] ==
-                                                                    true
-                                                                ? Icon(
-                                                                    Icons
-                                                                        .done_all,
-                                                                    color: MyColors
-                                                                        .blue10,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15))
-                                                                : Icon(
-                                                                    Icons.check,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15));
-                                                      }
-                                                      // return snapshot1.data!['status'] ==
-                                                      // 'Online' &&
-                                                      //  snapshot2.data![
-                                                      //  'readStatus'] ==
-                                                      //     false
-                                                      // ? Icon(Icons.done_all,
-                                                      // color: MyColors.black,
-                                                      // size: getHeight(15))
-                                                      // : snapshot2.data!['readStatus'] ==
-                                                      //  true
-                                                      // ? Icon(Icons.done_all,
-                                                      // color: MyColors.blue10,
-                                                      //  size: getHeight(15))
-                                                      // : Icon(Icons.check,
-                                                      // size: getHeight(15));
-                                                    }
-                                                  }
+                                                  return snapshot1.data![
+                                                                  'status'] ==
+                                                              'Online' &&
+                                                          messageModel
+                                                                  .readStatus ==
+                                                              false
+                                                      ? Icon(Icons.done_all,
+                                                          color: MyColors.black,
+                                                          size: getHeight(15))
+                                                      : messageModel
+                                                                  .readStatus ==
+                                                              true
+                                                          ? Icon(
+                                                              Icons.done_all,
+                                                              color: MyColors
+                                                                  .blue10,
+                                                              size:
+                                                                  getHeight(15))
+                                                          : Icon(Icons.check,
+                                                              size: getHeight(
+                                                                  15));
                                                 }
-                                                return const SizedBox();
-
-                                                // do some stuff with both streams here
-                                              },
+                                              }
+                                            }
+                                            return Center(
+                                              child:
+                                                  CircularProgressIndicator(),
                                             );
+                                            // return StreamBuilder(
+                                            //   stream: FirebaseFirestore.instance
+                                            //       .collection('chatRoom')
+                                            //       .doc(widget.groupId)
+                                            //       .collection('ChatUsers')
+                                            //       .doc(auth.currentUser!.uid)
+                                            //       .collection('message')
+                                            //       .snapshots(),
+                                            //   builder: (context, snapshot2) {
+                                            //     if (snapshot1.connectionState ==
+                                            //             ConnectionState.waiting ||
+                                            //         snapshot2.connectionState ==
+                                            //             ConnectionState.waiting) {
+                                            //       return const Center(
+                                            //         child: CircularProgressIndicator(
+                                            //           color: MyColors.primaryColor,
+                                            //         ),
+                                            //       );
+                                            //     } else {
+                                            //       if (snapshot1.connectionState ==
+                                            //               ConnectionState.active ||
+                                            //           snapshot1.connectionState ==
+                                            //               ConnectionState.done ||
+                                            //           snapshot2.connectionState ==
+                                            //               ConnectionState.active ||
+                                            //           snapshot2.connectionState ==
+                                            //               ConnectionState.done) {
+                                            //         if (snapshot1.hasError ||
+                                            //             snapshot2.hasError) {
+                                            //           return Text(
+                                            //               snapshot1.error.toString());
+                                            //         } else {
+                                            //           //Get.log("Else Called  ${snapshot1.data!['status']}");
+                                            //           //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
+                                            //           for (var element
+                                            //               in snapshot2.data!.docs) {
+                                            //             return snapshot1.data![
+                                            //                             'status'] ==
+                                            //                         'Online' &&
+                                            //                     element['readStatus'] ==
+                                            //                         false
+                                            //                 ? Icon(Icons.done_all,
+                                            //                     color: MyColors.black,
+                                            //                     size: getHeight(15))
+                                            //                 : element['readStatus'] ==
+                                            //                         true
+                                            //                     ? Icon(
+                                            //                         Icons.done_all,
+                                            //                         color:
+                                            //                             MyColors.blue10,
+                                            //                         size: getHeight(15))
+                                            //                     : Icon(Icons.check,
+                                            //                         size:
+                                            //                             getHeight(15));
+                                            //           }
+                                            //           // return snapshot1.data!['status'] ==
+                                            //           // 'Online' &&
+                                            //           //  snapshot2.data![
+                                            //           //  'readStatus'] ==
+                                            //           //     false
+                                            //           // ? Icon(Icons.done_all,
+                                            //           // color: MyColors.black,
+                                            //           // size: getHeight(15))
+                                            //           // : snapshot2.data!['readStatus'] ==
+                                            //           //  true
+                                            //           // ? Icon(Icons.done_all,
+                                            //           // color: MyColors.blue10,
+                                            //           //  size: getHeight(15))
+                                            //           // : Icon(Icons.check,
+                                            //           // size: getHeight(15));
+                                            //         }
+                                            //       }
+                                            //     }
+                                            //     return const SizedBox();
+                                            //
+                                            //     // do some stuff with both streams here
+                                            //   },
+                                            // );
                                           },
                                         ),
-
-                                        // StreamBuilder(
-                                        //   stream: FirebaseFirestore.instance
-                                        //       .collection('Users')
-                                        //       .doc(widget.userMap['id'])
-                                        //       .snapshots(),
-                                        //   builder: (context, snapshot1) {
-                                        //     return StreamBuilder(
-                                        //       stream: FirebaseFirestore.instance
-                                        //           .collection('chatRoom')
-                                        //           .doc(widget.groupId)
-                                        //           .collection('ChatUsers')
-                                        //           .doc(auth.currentUser!.uid)
-                                        //           .collection('message')
-                                        //           .doc(messageModel.messageId)
-                                        //           .snapshots(),
-                                        //       builder: (context, snapshot2) {
-                                        //         if (snapshot1.connectionState ==
-                                        //                 ConnectionState.waiting ||
-                                        //             snapshot2.connectionState ==
-                                        //                 ConnectionState.waiting) {
-                                        //           return const Center(
-                                        //             child: CircularProgressIndicator(
-                                        //               color: MyColors.primaryColor,
-                                        //             ),
-                                        //           );
-                                        //         } else {
-                                        //           if (snapshot1.connectionState ==
-                                        //                   ConnectionState.active ||
-                                        //               snapshot1.connectionState ==
-                                        //                   ConnectionState.done ||
-                                        //               snapshot2.connectionState ==
-                                        //                   ConnectionState.active ||
-                                        //               snapshot2.connectionState ==
-                                        //                   ConnectionState.done) {
-                                        //             if (snapshot1.hasError ||
-                                        //                 snapshot2.hasError) {
-                                        //               return Text(
-                                        //                   snapshot1.error.toString());
-                                        //             } else {
-                                        //               return snapshot1.data![
-                                        //                               'status'] ==
-                                        //                           'Online' &&
-                                        //                       snapshot2.data![
-                                        //                               'readStatus'] ==
-                                        //                           false
-                                        //                   ? Icon(Icons.done_all,
-                                        //                       color: MyColors.black,
-                                        //                       size: getHeight(15))
-                                        //                   : snapshot2.data![
-                                        //                               'readStatus'] ==
-                                        //                           true
-                                        //                       ? Icon(
-                                        //                           Icons.done_all,
-                                        //                           color:
-                                        //                               MyColors.blue10,
-                                        //                           size: getHeight(15))
-                                        //                       : Icon(Icons.check,
-                                        //                           size:
-                                        //                               getHeight(15));
-                                        //             }
-                                        //           }
-                                        //         }
-                                        //         return const SizedBox();
-                                        //
-                                        //         // do some stuff with both streams here
-                                        //       },
-                                        //     );
-                                        //   },
-                                        // ),
                                       ],
                                     ),
                                   ),
@@ -2732,184 +2948,145 @@ class _ChatScreenState extends State<ChatScreen> {
                                                   .doc(widget.userMap['id'])
                                                   .snapshots(),
                                               builder: (context, snapshot1) {
-                                                return StreamBuilder(
-                                                  stream: FirebaseFirestore
-                                                      .instance
-                                                      .collection('chatRoom')
-                                                      .doc(widget.groupId)
-                                                      .collection('ChatUsers')
-                                                      .doc(
-                                                          auth.currentUser!.uid)
-                                                      .collection('message')
-                                                      .snapshots(),
-                                                  builder:
-                                                      (context, snapshot2) {
-                                                    if (snapshot1
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting ||
-                                                        snapshot2
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting) {
-                                                      return const Center(
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                          color: MyColors
-                                                              .primaryColor,
-                                                        ),
-                                                      );
+                                                if (snapshot1.connectionState ==
+                                                    ConnectionState.waiting) {
+                                                  return const Center(
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      color:
+                                                          MyColors.primaryColor,
+                                                    ),
+                                                  );
+                                                } else {
+                                                  if (snapshot1
+                                                              .connectionState ==
+                                                          ConnectionState
+                                                              .active ||
+                                                      snapshot1
+                                                              .connectionState ==
+                                                          ConnectionState
+                                                              .done) {
+                                                    if (snapshot1.hasError) {
+                                                      return Text(snapshot1
+                                                          .error
+                                                          .toString());
                                                     } else {
-                                                      if (snapshot1.connectionState == ConnectionState.active ||
-                                                          snapshot1
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .done ||
-                                                          snapshot2
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .active ||
-                                                          snapshot2
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .done) {
-                                                        if (snapshot1
-                                                                .hasError ||
-                                                            snapshot2
-                                                                .hasError) {
-                                                          return Text(snapshot1
-                                                              .error
-                                                              .toString());
-                                                        } else {
-                                                          //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                                          //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                                          for (var element
-                                                              in snapshot2
-                                                                  .data!.docs) {
-                                                            return snapshot1.data![
-                                                                            'status'] ==
-                                                                        'Online' &&
-                                                                    element['readStatus'] ==
-                                                                        false
-                                                                ? Icon(
-                                                                    Icons
-                                                                        .done_all,
-                                                                    color: MyColors
-                                                                        .black,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15))
-                                                                : element['readStatus'] ==
-                                                                        true
-                                                                    ? Icon(
-                                                                        Icons
-                                                                            .done_all,
-                                                                        color: MyColors
-                                                                            .blue10,
-                                                                        size: getHeight(
-                                                                            15))
-                                                                    : Icon(
-                                                                        Icons
-                                                                            .check,
-                                                                        size: getHeight(
-                                                                            15));
-                                                          }
-                                                          // return snapshot1.data!['status'] ==
-                                                          // 'Online' &&
-                                                          //  snapshot2.data![
-                                                          //  'readStatus'] ==
-                                                          //     false
-                                                          // ? Icon(Icons.done_all,
-                                                          // color: MyColors.black,
-                                                          // size: getHeight(15))
-                                                          // : snapshot2.data!['readStatus'] ==
-                                                          //  true
-                                                          // ? Icon(Icons.done_all,
-                                                          // color: MyColors.blue10,
-                                                          //  size: getHeight(15))
-                                                          // : Icon(Icons.check,
-                                                          // size: getHeight(15));
-                                                        }
-                                                      }
+                                                      return snapshot1.data![
+                                                                      'status'] ==
+                                                                  'Online' &&
+                                                              messageModel
+                                                                      .readStatus ==
+                                                                  false
+                                                          ? Icon(
+                                                              Icons.done_all,
+                                                              color:
+                                                                  MyColors
+                                                                      .black,
+                                                              size: getHeight(
+                                                                  15))
+                                                          : messageModel
+                                                                      .readStatus ==
+                                                                  true
+                                                              ? Icon(
+                                                                  Icons
+                                                                      .done_all,
+                                                                  color: MyColors
+                                                                      .blue10,
+                                                                  size:
+                                                                      getHeight(
+                                                                          15))
+                                                              : Icon(
+                                                                  Icons.check,
+                                                                  size:
+                                                                      getHeight(
+                                                                          15));
                                                     }
-                                                    return const SizedBox();
-
-                                                    // do some stuff with both streams here
-                                                  },
+                                                  }
+                                                }
+                                                return Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
                                                 );
+                                                // return StreamBuilder(
+                                                //   stream: FirebaseFirestore.instance
+                                                //       .collection('chatRoom')
+                                                //       .doc(widget.groupId)
+                                                //       .collection('ChatUsers')
+                                                //       .doc(auth.currentUser!.uid)
+                                                //       .collection('message')
+                                                //       .snapshots(),
+                                                //   builder: (context, snapshot2) {
+                                                //     if (snapshot1.connectionState ==
+                                                //             ConnectionState.waiting ||
+                                                //         snapshot2.connectionState ==
+                                                //             ConnectionState.waiting) {
+                                                //       return const Center(
+                                                //         child: CircularProgressIndicator(
+                                                //           color: MyColors.primaryColor,
+                                                //         ),
+                                                //       );
+                                                //     } else {
+                                                //       if (snapshot1.connectionState ==
+                                                //               ConnectionState.active ||
+                                                //           snapshot1.connectionState ==
+                                                //               ConnectionState.done ||
+                                                //           snapshot2.connectionState ==
+                                                //               ConnectionState.active ||
+                                                //           snapshot2.connectionState ==
+                                                //               ConnectionState.done) {
+                                                //         if (snapshot1.hasError ||
+                                                //             snapshot2.hasError) {
+                                                //           return Text(
+                                                //               snapshot1.error.toString());
+                                                //         } else {
+                                                //           //Get.log("Else Called  ${snapshot1.data!['status']}");
+                                                //           //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
+                                                //           for (var element
+                                                //               in snapshot2.data!.docs) {
+                                                //             return snapshot1.data![
+                                                //                             'status'] ==
+                                                //                         'Online' &&
+                                                //                     element['readStatus'] ==
+                                                //                         false
+                                                //                 ? Icon(Icons.done_all,
+                                                //                     color: MyColors.black,
+                                                //                     size: getHeight(15))
+                                                //                 : element['readStatus'] ==
+                                                //                         true
+                                                //                     ? Icon(
+                                                //                         Icons.done_all,
+                                                //                         color:
+                                                //                             MyColors.blue10,
+                                                //                         size: getHeight(15))
+                                                //                     : Icon(Icons.check,
+                                                //                         size:
+                                                //                             getHeight(15));
+                                                //           }
+                                                //           // return snapshot1.data!['status'] ==
+                                                //           // 'Online' &&
+                                                //           //  snapshot2.data![
+                                                //           //  'readStatus'] ==
+                                                //           //     false
+                                                //           // ? Icon(Icons.done_all,
+                                                //           // color: MyColors.black,
+                                                //           // size: getHeight(15))
+                                                //           // : snapshot2.data!['readStatus'] ==
+                                                //           //  true
+                                                //           // ? Icon(Icons.done_all,
+                                                //           // color: MyColors.blue10,
+                                                //           //  size: getHeight(15))
+                                                //           // : Icon(Icons.check,
+                                                //           // size: getHeight(15));
+                                                //         }
+                                                //       }
+                                                //     }
+                                                //     return const SizedBox();
+                                                //
+                                                //     // do some stuff with both streams here
+                                                //   },
+                                                // );
                                               },
                                             ),
-                                            // StreamBuilder(
-                                            //   stream: FirebaseFirestore.instance
-                                            //       .collection('Users')
-                                            //       .doc(widget.userMap['id'])
-                                            //       .snapshots(),
-                                            //   builder: (context, snapshot1) {
-                                            //     return StreamBuilder(
-                                            //       stream: FirebaseFirestore.instance
-                                            //           .collection('chatRoom')
-                                            //           .doc(widget.groupId)
-                                            //           .collection('ChatUsers')
-                                            //           .doc(auth.currentUser!.uid)
-                                            //           .collection('message')
-                                            //           .doc(messageModel.messageId)
-                                            //           .snapshots(),
-                                            //       builder: (context, snapshot2) {
-                                            //         if (snapshot1.connectionState ==
-                                            //                 ConnectionState.waiting ||
-                                            //             snapshot2.connectionState ==
-                                            //                 ConnectionState.waiting) {
-                                            //           return const Center(
-                                            //             child:
-                                            //                 CircularProgressIndicator(
-                                            //               color: MyColors.primaryColor,
-                                            //             ),
-                                            //           );
-                                            //         } else {
-                                            //           if (snapshot1.connectionState ==
-                                            //                   ConnectionState.active ||
-                                            //               snapshot1.connectionState ==
-                                            //                   ConnectionState.done ||
-                                            //               snapshot2.connectionState ==
-                                            //                   ConnectionState.active ||
-                                            //               snapshot2.connectionState ==
-                                            //                   ConnectionState.done) {
-                                            //             if (snapshot1.hasError ||
-                                            //                 snapshot2.hasError) {
-                                            //               return Text(snapshot1.error
-                                            //                   .toString());
-                                            //             } else {
-                                            //               return snapshot1.data![
-                                            //                               'status'] ==
-                                            //                           'Online' &&
-                                            //                       snapshot2.data![
-                                            //                               'readStatus'] ==
-                                            //                           false
-                                            //                   ? Icon(Icons.done_all,
-                                            //                       color: MyColors.black,
-                                            //                       size: getHeight(15))
-                                            //                   : snapshot2.data![
-                                            //                               'readStatus'] ==
-                                            //                           true
-                                            //                       ? Icon(
-                                            //                           Icons.done_all,
-                                            //                           color: MyColors
-                                            //                               .blue10,
-                                            //                           size:
-                                            //                               getHeight(15))
-                                            //                       : Icon(Icons.check,
-                                            //                           size: getHeight(
-                                            //                               15));
-                                            //             }
-                                            //           }
-                                            //         }
-                                            //         return const SizedBox();
-                                            //
-                                            //         // do some stuff with both streams here
-                                            //       },
-                                            //     );
-                                            //   },
-                                            // ),
                                           ],
                                         ),
                                       ),
@@ -3020,189 +3197,315 @@ class _ChatScreenState extends State<ChatScreen> {
                                                   .doc(widget.userMap['id'])
                                                   .snapshots(),
                                               builder: (context, snapshot1) {
-                                                return StreamBuilder(
-                                                  stream: FirebaseFirestore
-                                                      .instance
-                                                      .collection('chatRoom')
-                                                      .doc(widget.groupId)
-                                                      .collection('ChatUsers')
-                                                      .doc(
-                                                          auth.currentUser!.uid)
-                                                      .collection('message')
-                                                      .snapshots(),
-                                                  builder:
-                                                      (context, snapshot2) {
-                                                    if (snapshot1
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting ||
-                                                        snapshot2
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting) {
-                                                      return const Center(
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                          color: MyColors
-                                                              .primaryColor,
-                                                        ),
-                                                      );
+                                                if (snapshot1.connectionState ==
+                                                    ConnectionState.waiting) {
+                                                  return const Center(
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      color:
+                                                          MyColors.primaryColor,
+                                                    ),
+                                                  );
+                                                } else {
+                                                  if (snapshot1
+                                                              .connectionState ==
+                                                          ConnectionState
+                                                              .active ||
+                                                      snapshot1
+                                                              .connectionState ==
+                                                          ConnectionState
+                                                              .done) {
+                                                    if (snapshot1.hasError) {
+                                                      return Text(snapshot1
+                                                          .error
+                                                          .toString());
                                                     } else {
-                                                      if (snapshot1.connectionState == ConnectionState.active ||
-                                                          snapshot1
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .done ||
-                                                          snapshot2
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .active ||
-                                                          snapshot2
-                                                                  .connectionState ==
-                                                              ConnectionState
-                                                                  .done) {
-                                                        if (snapshot1
-                                                                .hasError ||
-                                                            snapshot2
-                                                                .hasError) {
-                                                          return Text(snapshot1
-                                                              .error
-                                                              .toString());
-                                                        } else {
-                                                          //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                                          //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                                          for (var element
-                                                              in snapshot2
-                                                                  .data!.docs) {
-                                                            return snapshot1.data![
-                                                                            'status'] ==
-                                                                        'Online' &&
-                                                                    element['readStatus'] ==
-                                                                        false
-                                                                ? Icon(
-                                                                    Icons
-                                                                        .done_all,
-                                                                    color: MyColors
-                                                                        .black,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15))
-                                                                : element['readStatus'] ==
-                                                                        true
-                                                                    ? Icon(
-                                                                        Icons
-                                                                            .done_all,
-                                                                        color: MyColors
-                                                                            .blue10,
-                                                                        size: getHeight(
-                                                                            15))
-                                                                    : Icon(
-                                                                        Icons
-                                                                            .check,
-                                                                        size: getHeight(
-                                                                            15));
-                                                          }
-                                                          // return snapshot1.data!['status'] ==
-                                                          // 'Online' &&
-                                                          //  snapshot2.data![
-                                                          //  'readStatus'] ==
-                                                          //     false
-                                                          // ? Icon(Icons.done_all,
-                                                          // color: MyColors.black,
-                                                          // size: getHeight(15))
-                                                          // : snapshot2.data!['readStatus'] ==
-                                                          //  true
-                                                          // ? Icon(Icons.done_all,
-                                                          // color: MyColors.blue10,
-                                                          //  size: getHeight(15))
-                                                          // : Icon(Icons.check,
-                                                          // size: getHeight(15));
-                                                        }
-                                                      }
+                                                      return snapshot1.data![
+                                                                      'status'] ==
+                                                                  'Online' &&
+                                                              messageModel
+                                                                      .readStatus ==
+                                                                  false
+                                                          ? Icon(
+                                                              Icons.done_all,
+                                                              color:
+                                                                  MyColors
+                                                                      .black,
+                                                              size: getHeight(
+                                                                  15))
+                                                          : messageModel
+                                                                      .readStatus ==
+                                                                  true
+                                                              ? Icon(
+                                                                  Icons
+                                                                      .done_all,
+                                                                  color: MyColors
+                                                                      .blue10,
+                                                                  size:
+                                                                      getHeight(
+                                                                          15))
+                                                              : Icon(
+                                                                  Icons.check,
+                                                                  size:
+                                                                      getHeight(
+                                                                          15));
                                                     }
-                                                    return const SizedBox();
-
-                                                    // do some stuff with both streams here
-                                                  },
+                                                  }
+                                                }
+                                                return Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
                                                 );
+                                                // return StreamBuilder(
+                                                //   stream: FirebaseFirestore.instance
+                                                //       .collection('chatRoom')
+                                                //       .doc(widget.groupId)
+                                                //       .collection('ChatUsers')
+                                                //       .doc(auth.currentUser!.uid)
+                                                //       .collection('message')
+                                                //       .snapshots(),
+                                                //   builder: (context, snapshot2) {
+                                                //     if (snapshot1.connectionState ==
+                                                //             ConnectionState.waiting ||
+                                                //         snapshot2.connectionState ==
+                                                //             ConnectionState.waiting) {
+                                                //       return const Center(
+                                                //         child: CircularProgressIndicator(
+                                                //           color: MyColors.primaryColor,
+                                                //         ),
+                                                //       );
+                                                //     } else {
+                                                //       if (snapshot1.connectionState ==
+                                                //               ConnectionState.active ||
+                                                //           snapshot1.connectionState ==
+                                                //               ConnectionState.done ||
+                                                //           snapshot2.connectionState ==
+                                                //               ConnectionState.active ||
+                                                //           snapshot2.connectionState ==
+                                                //               ConnectionState.done) {
+                                                //         if (snapshot1.hasError ||
+                                                //             snapshot2.hasError) {
+                                                //           return Text(
+                                                //               snapshot1.error.toString());
+                                                //         } else {
+                                                //           //Get.log("Else Called  ${snapshot1.data!['status']}");
+                                                //           //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
+                                                //           for (var element
+                                                //               in snapshot2.data!.docs) {
+                                                //             return snapshot1.data![
+                                                //                             'status'] ==
+                                                //                         'Online' &&
+                                                //                     element['readStatus'] ==
+                                                //                         false
+                                                //                 ? Icon(Icons.done_all,
+                                                //                     color: MyColors.black,
+                                                //                     size: getHeight(15))
+                                                //                 : element['readStatus'] ==
+                                                //                         true
+                                                //                     ? Icon(
+                                                //                         Icons.done_all,
+                                                //                         color:
+                                                //                             MyColors.blue10,
+                                                //                         size: getHeight(15))
+                                                //                     : Icon(Icons.check,
+                                                //                         size:
+                                                //                             getHeight(15));
+                                                //           }
+                                                //           // return snapshot1.data!['status'] ==
+                                                //           // 'Online' &&
+                                                //           //  snapshot2.data![
+                                                //           //  'readStatus'] ==
+                                                //           //     false
+                                                //           // ? Icon(Icons.done_all,
+                                                //           // color: MyColors.black,
+                                                //           // size: getHeight(15))
+                                                //           // : snapshot2.data!['readStatus'] ==
+                                                //           //  true
+                                                //           // ? Icon(Icons.done_all,
+                                                //           // color: MyColors.blue10,
+                                                //           //  size: getHeight(15))
+                                                //           // : Icon(Icons.check,
+                                                //           // size: getHeight(15));
+                                                //         }
+                                                //       }
+                                                //     }
+                                                //     return const SizedBox();
+                                                //
+                                                //     // do some stuff with both streams here
+                                                //   },
+                                                // );
                                               },
                                             ),
-
-                                            // StreamBuilder(
-                                            //   stream: FirebaseFirestore.instance
-                                            //       .collection('Users')
-                                            //       .doc(widget.userMap['id'])
-                                            //       .snapshots(),
-                                            //   builder: (context, snapshot1) {
-                                            //     return StreamBuilder(
-                                            //       stream: FirebaseFirestore.instance
-                                            //           .collection('chatRoom')
-                                            //           .doc(widget.groupId)
-                                            //           .collection('ChatUsers')
-                                            //           .doc(auth.currentUser!.uid)
-                                            //           .collection('message')
-                                            //           .doc(messageModel.messageId)
-                                            //           .snapshots(),
-                                            //       builder: (context, snapshot2) {
-                                            //         if (snapshot1.connectionState ==
-                                            //                 ConnectionState.waiting ||
-                                            //             snapshot2.connectionState ==
-                                            //                 ConnectionState.waiting) {
-                                            //           return const Center(
-                                            //             child: CircularProgressIndicator(
-                                            //               color: MyColors.primaryColor,
-                                            //             ),
-                                            //           );
-                                            //         } else {
-                                            //           if (snapshot1.connectionState ==
-                                            //                   ConnectionState.active ||
-                                            //               snapshot1.connectionState ==
-                                            //                   ConnectionState.done ||
-                                            //               snapshot2.connectionState ==
-                                            //                   ConnectionState.active ||
-                                            //               snapshot2.connectionState ==
-                                            //                   ConnectionState.done) {
-                                            //             if (snapshot1.hasError ||
-                                            //                 snapshot2.hasError) {
-                                            //               return Text(
-                                            //                   snapshot1.error.toString());
-                                            //             } else {
-                                            //               return snapshot1.data![
-                                            //                               'status'] ==
-                                            //                           'Online' &&
-                                            //                       snapshot2.data![
-                                            //                               'readStatus'] ==
-                                            //                           false
-                                            //                   ? Icon(Icons.done_all,
-                                            //                       color: MyColors.black,
-                                            //                       size: getHeight(15))
-                                            //                   : snapshot2.data![
-                                            //                               'readStatus'] ==
-                                            //                           true
-                                            //                       ? Icon(
-                                            //                           Icons.done_all,
-                                            //                           color:
-                                            //                               MyColors.blue10,
-                                            //                           size: getHeight(15))
-                                            //                       : Icon(Icons.check,
-                                            //                           size:
-                                            //                               getHeight(15));
-                                            //             }
-                                            //           }
-                                            //         }
-                                            //         return const SizedBox();
-                                            //
-                                            //         // do some stuff with both streams here
-                                            //       },
-                                            //     );
-                                            //   },
-                                            // ),
                                           ],
                                         ),
                                       ),
                                     ),
                                   ],
-                                )
+                                ):
+              messageModel.type == MessageType.document?
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                                onLongPress: () {
+                                  DialogueBox().deleteMessage(context,
+                                          () {
+                                        Get.find<ChatController>()
+                                            .deleteSingleMessage(
+                                            groupId: widget.groupId,
+                                            messageId: messageModel
+                                                .messageId);
+                                        Get.back();
+                                      });
+                                  //Get.log("Text Message is Pressed$index");
+                                },
+                                child: Container(
+                                    constraints: BoxConstraints(
+                                        maxWidth: getWidth(200),
+                                        minHeight: getHeight(50),
+                                        maxHeight: getHeight(50),
+                                        minWidth: getWidth(200)),
+                                    decoration: BoxDecoration(
+                                      color: MyColors.primaryColor,
+                                        borderRadius:
+                                        BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: MyColors
+                                                .primaryColor)),
+                                    //height: getHeight(200),
+                                    //width: getWidth(200),
+                                    //decoration: BoxDecoration(color: Colors.red),
+                                    child: messageModel
+                                        .messageContent ==
+                                        ""
+                                        ? const Center(
+                                        child:
+                                        CircularProgressIndicator(
+                                          color:
+                                          MyColors.primaryColor,
+                                        ))
+                                        : Stack(children: [
+                                      //Text(messageModel.messageContent.toString()),
+                                      GestureDetector(
+                                          onTap: () {
+                                            GetStorage().write('${auth.currentUser!.uid}URL', messageModel.messageContent);
+                                            print("${GetStorage().read('${auth.currentUser!.uid}URL')}");
+                                            Get.find<ChatController>().launchURL(url: messageModel.messageContent);
+                                            //Get.to(PdfViewScreen(url: messageModel.messageContent,));
+                                            //launchUrl(Uri.parse((messageModel.messageContent)));
+                                            //SfPdfViewer.network(messageModel.messageContent,
+                                                //initialScrollOffset: Offset(0, 500),
+                                                //initialZoomLevel: 1.5
+                                            //);
+                                            // Get.to(VideoPlayerScreen(
+                                            //       url: messageModel
+                                            //           .messageContent,
+                                            //     ));
+                                          },
+                                          //child: Center(
+                                            //child : finalPath == '' ?const CircularProgressIndicator() : Text(finalPath)
+                                               child: const Center(
+                                                 child: Text(
+                                                   'Document',
+                                                  //finalPath==''? "123": finalPath.toString(),
+                                                  style: const TextStyle(color: Colors.white),
+                                              ),
+                                               )
+                                             // )
+                                      )
+                                    ]))),
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        bottom: getHeight(10),
+                        right: getWidth(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.8),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                DateFormatUtil.getFormattedTime(
+                                    context: context,
+                                    time: messageModel.timestamp),
+                                // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
+                                // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: MyColors.white
+                                        .withOpacity(0.8)),
+                              ),
+                              StreamBuilder(
+                                stream: FirebaseFirestore.instance
+                                    .collection('Users')
+                                    .doc(widget.userMap['id'])
+                                    .snapshots(),
+                                builder: (context, snapshot1) {
+                                  if (snapshot1.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child:
+                                      CircularProgressIndicator(
+                                        color: MyColors.primaryColor,
+                                      ),
+                                    );
+                                  } else {
+                                    if (snapshot1.connectionState ==
+                                        ConnectionState.active ||
+                                        snapshot1.connectionState ==
+                                            ConnectionState.done) {
+                                      if (snapshot1.hasError) {
+                                        return Text(snapshot1.error
+                                            .toString());
+                                      } else {
+                                        return snapshot1.data![
+                                        'status'] ==
+                                            'Online' &&
+                                            messageModel
+                                                .readStatus ==
+                                                false
+                                            ? Icon(Icons.done_all,
+                                            color: MyColors.black,
+                                            size: getHeight(15))
+                                            : messageModel
+                                            .readStatus ==
+                                            true
+                                            ? Icon(
+                                            Icons.done_all,
+                                            color: MyColors
+                                                .blue10,
+                                            size:
+                                            getHeight(15))
+                                            : Icon(Icons.check,
+                                            size: getHeight(
+                                                15));
+                                      }
+                                    }
+                                  }
+                                  return const Center(
+                                    child:
+                                    CircularProgressIndicator(),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                  //:SizedBox(height: getHeight(200),width: getWidth(200),
+                  //child: const Center(child: CircularProgressIndicator(color: MyColors.primaryColor,),),),
+                ],
+              )
                               : const CircularProgressIndicator(
                                   color: MyColors.primaryColor,
                                 )
@@ -3367,65 +3670,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                       fontSize: 10,
                                       color: MyColors.white.withOpacity(0.8)),
                                 ),
-                                // StreamBuilder(
-                                //   stream: FirebaseFirestore.instance
-                                //       .collection('Users')
-                                //       .doc(widget.sendToUserID)
-                                //       .snapshots(),
-                                //   builder: (context, snapshot1) {
-                                //     return StreamBuilder(
-                                //       stream: FirebaseFirestore.instance
-                                //           .collection('chat')
-                                //           .doc(widget.groupId)
-                                //           .collection(widget.groupId)
-                                //           .doc(messageModel.messageId)
-                                //           .snapshots(),
-                                //       builder: (context, snapshot2) {
-                                //         if (snapshot1.connectionState ==
-                                //             ConnectionState.waiting ||
-                                //             snapshot2.connectionState ==
-                                //                 ConnectionState.waiting) {
-                                //           return const Center(
-                                //             child: CircularProgressIndicator(
-                                //               color: MyColors.primaryColor,
-                                //             ),
-                                //           );
-                                //         } else {
-                                //           if (snapshot1.connectionState ==
-                                //               ConnectionState.active ||
-                                //               snapshot1.connectionState ==
-                                //                   ConnectionState.done ||
-                                //               snapshot2.connectionState ==
-                                //                   ConnectionState.active ||
-                                //               snapshot2.connectionState ==
-                                //                   ConnectionState.done) {
-                                //             if(snapshot1.hasError || snapshot2.hasError){
-                                //               return Text(snapshot1.error.toString());
-                                //             }
-                                //             else{
-                                //               return snapshot1.data!['status'] ==
-                                //                   'Online' &&
-                                //                   snapshot2.data!['readStatus'] ==
-                                //                       false
-                                //                   ? Icon(Icons.done_all,
-                                //                   color: MyColors.black,
-                                //                   size: getHeight(15))
-                                //                   : snapshot2.data!['readStatus'] == true
-                                //                   ? Icon(Icons.done_all,
-                                //                   color: MyColors.blue10,
-                                //                   size: getHeight(15))
-                                //                   : Icon(Icons.check,
-                                //                   size: getHeight(15));
-                                //             }
-                                //           }
-                                //         }
-                                //         return const SizedBox();
-                                //
-                                //         // do some stuff with both streams here
-                                //       },
-                                //     );
-                                //   },
-                                // ),
                               ],
                             ),
                           ),
@@ -3603,182 +3847,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                               color: MyColors.white
                                                   .withOpacity(0.8)),
                                         ),
-                                        StreamBuilder(
-                                          stream: FirebaseFirestore.instance
-                                              .collection('Users')
-                                              .doc(widget.userMap['id'])
-                                              .snapshots(),
-                                          builder: (context, snapshot1) {
-                                            return StreamBuilder(
-                                              stream: FirebaseFirestore.instance
-                                                  .collection('chatRoom')
-                                                  .doc(widget.groupId)
-                                                  .collection('ChatUsers')
-                                                  .doc(auth.currentUser!.uid)
-                                                  .collection('message')
-                                                  .snapshots(),
-                                              builder: (context, snapshot2) {
-                                                if (snapshot1.connectionState ==
-                                                        ConnectionState
-                                                            .waiting ||
-                                                    snapshot2.connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      color:
-                                                          MyColors.primaryColor,
-                                                    ),
-                                                  );
-                                                } else {
-                                                  if (snapshot1.connectionState == ConnectionState.active ||
-                                                      snapshot1
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .done ||
-                                                      snapshot2
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .active ||
-                                                      snapshot2
-                                                              .connectionState ==
-                                                          ConnectionState
-                                                              .done) {
-                                                    if (snapshot1.hasError ||
-                                                        snapshot2.hasError) {
-                                                      return Text(snapshot1
-                                                          .error
-                                                          .toString());
-                                                    } else {
-                                                      //Get.log("Else Called  ${snapshot1.data!['status']}");
-                                                      //Get.log("Else Called  00000 ${snapshot2.data.docs['readStatus']}");
-                                                      for (var element
-                                                          in snapshot2
-                                                              .data!.docs) {
-                                                        return snapshot1.data![
-                                                                        'status'] ==
-                                                                    'Online' &&
-                                                                element['readStatus'] ==
-                                                                    false
-                                                            ? Icon(
-                                                                Icons.done_all,
-                                                                color: MyColors
-                                                                    .black,
-                                                                size:
-                                                                    getHeight(
-                                                                        15))
-                                                            : element['readStatus'] ==
-                                                                    true
-                                                                ? Icon(
-                                                                    Icons
-                                                                        .done_all,
-                                                                    color: MyColors
-                                                                        .blue10,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15))
-                                                                : Icon(
-                                                                    Icons.check,
-                                                                    size:
-                                                                        getHeight(
-                                                                            15));
-                                                      }
-                                                      // return snapshot1.data!['status'] ==
-                                                      // 'Online' &&
-                                                      //  snapshot2.data![
-                                                      //  'readStatus'] ==
-                                                      //     false
-                                                      // ? Icon(Icons.done_all,
-                                                      // color: MyColors.black,
-                                                      // size: getHeight(15))
-                                                      // : snapshot2.data!['readStatus'] ==
-                                                      //  true
-                                                      // ? Icon(Icons.done_all,
-                                                      // color: MyColors.blue10,
-                                                      //  size: getHeight(15))
-                                                      // : Icon(Icons.check,
-                                                      // size: getHeight(15));
-                                                    }
-                                                  }
-                                                }
-                                                return const SizedBox();
-
-                                                // do some stuff with both streams here
-                                              },
-                                            );
-                                          },
-                                        ),
-
-                                        // StreamBuilder(
-                                        //   stream: FirebaseFirestore.instance
-                                        //       .collection('Users')
-                                        //       .doc(widget.userMap['id'])
-                                        //       .snapshots(),
-                                        //   builder: (context, snapshot1) {
-                                        //     return StreamBuilder(
-                                        //       stream: FirebaseFirestore.instance
-                                        //           .collection('chatRoom')
-                                        //           .doc(widget.groupId)
-                                        //           .collection('ChatUsers')
-                                        //           .doc(auth.currentUser!.uid)
-                                        //           .collection('message')
-                                        //           .doc(messageModel.messageId)
-                                        //           .snapshots(),
-                                        //       builder: (context, snapshot2) {
-                                        //         if (snapshot1.connectionState ==
-                                        //                 ConnectionState.waiting ||
-                                        //             snapshot2.connectionState ==
-                                        //                 ConnectionState.waiting) {
-                                        //           return const Center(
-                                        //             child: CircularProgressIndicator(
-                                        //               color: MyColors.primaryColor,
-                                        //             ),
-                                        //           );
-                                        //         } else {
-                                        //           if (snapshot1.connectionState ==
-                                        //                   ConnectionState.active ||
-                                        //               snapshot1.connectionState ==
-                                        //                   ConnectionState.done ||
-                                        //               snapshot2.connectionState ==
-                                        //                   ConnectionState.active ||
-                                        //               snapshot2.connectionState ==
-                                        //                   ConnectionState.done) {
-                                        //             if (snapshot1.hasError ||
-                                        //                 snapshot2.hasError) {
-                                        //               return Text(
-                                        //                   snapshot1.error.toString());
-                                        //             } else {
-                                        //               return snapshot1.data![
-                                        //                               'status'] ==
-                                        //                           'Online' &&
-                                        //                       snapshot2.data![
-                                        //                               'readStatus'] ==
-                                        //                           false
-                                        //                   ? Icon(Icons.done_all,
-                                        //                       color: MyColors.black,
-                                        //                       size: getHeight(15))
-                                        //                   : snapshot2.data![
-                                        //                               'readStatus'] ==
-                                        //                           true
-                                        //                       ? Icon(
-                                        //                           Icons.done_all,
-                                        //                           color:
-                                        //                               MyColors.blue10,
-                                        //                           size: getHeight(15))
-                                        //                       : Icon(Icons.check,
-                                        //                           size:
-                                        //                               getHeight(15));
-                                        //             }
-                                        //           }
-                                        //         }
-                                        //         return const SizedBox();
-                                        //
-                                        //         // do some stuff with both streams here
-                                        //       },
-                                        //     );
-                                        //   },
-                                        // ),
                                       ],
                                     ),
                                   ),
@@ -4115,6 +4183,103 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                   ],
                                 )
+          :messageModel.type == MessageType.document ?
+            Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        GestureDetector(
+                            onLongPress: () {
+                              DialogueBox().deleteMessage(context,
+                                      () {
+                                    Get.find<ChatController>()
+                                        .deleteSingleMessage(
+                                        groupId: widget.groupId,
+                                        messageId: messageModel
+                                            .messageId);
+                                    Get.back();
+                                  });
+
+                              //Get.log("Text Message is Pressed$index");
+                            },
+                            child: Container(
+                                constraints: BoxConstraints(
+                                    maxWidth: getWidth(200),
+                                    minHeight: getHeight(50),
+                                    maxHeight: getHeight(50),
+                                    minWidth: getWidth(200)),
+                                decoration: BoxDecoration(
+                                    borderRadius:
+                                    BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: MyColors
+                                            .primaryColor)),
+                                //height: getHeight(200),
+                                //width: getWidth(200),
+                                //decoration: BoxDecoration(color: Colors.red),
+                                child: messageModel
+                                    .messageContent ==
+                                    ""
+                                    ? const Center(
+                                    child:
+                                    CircularProgressIndicator(
+                                      color:
+                                      MyColors.primaryColor,
+                                    ))
+                                    : Stack(children: [
+                                  //Text(messageModel.messageContent.toString()),
+                                  GestureDetector(
+                                      onTap: () {
+                                        Get.find<ChatController>().launchURL(url: messageModel.messageContent);
+                                        // Get.to(
+                                        //     VideoPlayerScreen(
+                                        //       url: messageModel
+                                        //           .messageContent,
+                                        //     ));
+                                      },
+                                      child:const  Center(
+                                          child: Text(
+                                              'Document'
+                                          )))
+                                ]))),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    bottom: getHeight(10),
+                    right: getWidth(10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.8),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            DateFormatUtil.getFormattedTime(
+                                context: context,
+                                time: messageModel.timestamp),
+                            // ' ${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).hour.toString())}:'
+                            // '${(DateTime.fromMillisecondsSinceEpoch(int.parse(messageModel.timestamp)).minute.toString())}',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: MyColors.white
+                                    .withOpacity(0.8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+              //:SizedBox(height: getHeight(200),width: getWidth(200),
+              //child: const Center(child: CircularProgressIndicator(color: MyColors.primaryColor,),),),
+            ],
+          )
                               : const CircularProgressIndicator(
                                   color: MyColors.primaryColor,
                                 )

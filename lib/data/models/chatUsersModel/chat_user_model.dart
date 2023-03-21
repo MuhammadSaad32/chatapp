@@ -9,9 +9,8 @@ class MessageModel {
   String messageId;
   String messageContent;
   String? duration;
+  //String? fileName;
   bool readStatus;
-  //bool delivered;
-  //String userStatus;
   int type;
 
   MessageModel({
@@ -24,6 +23,7 @@ class MessageModel {
     required this.messageId,
     //required this.delivered,
     this.duration,
+    //this.fileName,
     required this.readStatus,
     //required this.userStatus,
     required this.type,
@@ -39,6 +39,7 @@ class MessageModel {
       "duration": duration,
       "messageId": messageId,
       "readStatus": readStatus,
+     // "fileName": fileName,
       //"userStatus": userStatus,
       "message": messageContent,
       "messageType": type,
@@ -54,7 +55,7 @@ class MessageModel {
     String timestamp = doc.get("timeStamp") ?? DateTime.now();
     String messageId = doc.get("messageId");
     bool readStatus = doc.get("readStatus");
-    //String userStatus = doc.get("userStatus");
+   // String fileName = doc.get("fileName");
     String duration = doc.get("duration");
     int type = doc.get("messageType");
     return MessageModel(
@@ -63,6 +64,7 @@ class MessageModel {
         readStatus: readStatus,
         type: type,
         duration: duration,
+       // fileName: fileName,
         currentID: currentID,
         receiverID: receiverID,
         receiverFName: receiverFName,
