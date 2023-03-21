@@ -24,10 +24,8 @@ class AllUsersScreen extends StatefulWidget {
 
 class _AllUsersScreenState extends State<AllUsersScreen> {
   final fireStore = FirebaseFirestore.instance;
-
   final auth = FirebaseAuth.instance;
-
-  bool idPresent = false;
+  //bool idPresent = false;
   List searchResult = [];
 
   void searchFromFirebase(String query) async {
@@ -94,7 +92,7 @@ class _AllUsersScreenState extends State<AllUsersScreen> {
               onTap: () async {
                 await Get.find<HomeController>().getCurrentUserID();
                 await Get.find<HomeController>().getDataCurrentUser();
-                Get.offAll(HomeScreen());
+                Get.offAll(const HomeScreen());
               },
               child: const Icon(Icons.arrow_back)),
           backgroundColor: MyColors.primaryColor,
@@ -139,6 +137,9 @@ class _AllUsersScreenState extends State<AllUsersScreen> {
                               return GestureDetector(
                                 onTap: (){
                                   Get.log("1111111${snapshot.data!.docs[index].data()}");
+                                  // Get.log("1111111  ${snapshot.data!.docs[index]['id']}");
+                                  // Get.log("1111111  ${snapshot.data!.docs[index]['firstName']}");
+                                  // Get.log("1111111  ${snapshot.data!.docs[index]['lastName']}");
                                   Get.to(ChatScreen(
                                     groupId: (auth.currentUser!.uid.hashCode + snapshot.data!.docs[index]['id'].hashCode).toString(),
                                     userMap: snapshot.data!.docs[index].data(),

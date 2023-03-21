@@ -35,7 +35,8 @@ dev_dependencies:
   audioplayers: ^3.0.1
   uuid: ^3.0.7
   url_launcher: ^6.1.10
-#  flutter_screenutil: ^5.7.0
+  file_picker: ^5.2.6
+#  syncfusion_flutter_pdfviewer: 20.4.44
   video_player: ^2.6.0
   google_maps_flutter: ^2.2.5
   permission_handler: ^10.2.0
